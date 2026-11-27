@@ -95,8 +95,9 @@ jobs:
           vendor/bin/testbench workbench:build --ansi
           npm run build:workbench
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      # The suite runs in all three engines (playwright.config.js projects).
+      - name: Install browsers
+        run: npx playwright install --with-deps chromium firefox webkit
 
       - name: Run browser tests
         run: npx playwright test

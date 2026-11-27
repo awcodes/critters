@@ -16,6 +16,7 @@ use Filament\Schemas\SchemasServiceProvider;
 use Filament\Support\SupportServiceProvider;
 use Filament\Tables\TablesServiceProvider;
 use Filament\Widgets\WidgetsServiceProvider;
+use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Livewire\LivewireServiceProvider;
 use Orchestra\Testbench\Concerns\WithWorkbench;
 use Orchestra\Testbench\TestCase as Orchestra;
@@ -29,10 +30,13 @@ use Workbench\App\Providers\Filament\ZooPanelProvider;
 
 class TestCase extends Orchestra
 {
+    use LazilyRefreshDatabase;
     use WithWorkbench;
 
     public function getEnvironmentSetUp($app): void
     {
+        // Always the in-memory connection: never the Workbench's own database file.
+        $app['config']->set('database.default', 'testing');
         $app['config']->set('app.key', 'base64:' . base64_encode(random_bytes(32)));
     }
 
