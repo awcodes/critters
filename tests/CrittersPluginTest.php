@@ -26,7 +26,9 @@ it('identifies itself as critters', function (): void {
 it('has sensible defaults', function (): void {
     Filament::setCurrentPanel('admin');
 
-    expect(CrittersPlugin::make()->getConfig())->toBe([
+    $config = CrittersPlugin::make()->getConfig();
+
+    expect($config)->toMatchArray([
         'panel' => 'admin',
         'creature' => 'cat',
         'environment' => 'panel',
@@ -34,7 +36,10 @@ it('has sensible defaults', function (): void {
         'region' => null,
         'interactive' => true,
         'touch' => false,
-    ]);
+        'choices' => ['cat', 'dog', 'lizard', 'sparky', 'atlas', 'barney'],
+    ])
+        ->and(array_keys($config['sprites']))->toBe($config['choices'])
+        ->and($config['sprites']['sparky'])->toContain('css/awcodes/critters/critters-creature-sparky.css?v=');
 });
 
 it('stores configured creature, environment and behavior', function (): void {
@@ -100,7 +105,7 @@ it('renders the panel config for authenticated users', function (): void {
 
     preg_match('/data-critters-config>(.*)<\/script>/', $html, $matches);
 
-    expect(json_decode($matches[1], true))->toBe([
+    expect(json_decode($matches[1], true))->toMatchArray([
         'panel' => 'admin',
         'creature' => 'cat',
         'environment' => 'panel',
@@ -177,7 +182,7 @@ it('publishes every built-in sprite but loads them only on request', function ()
     $assets = collect((fn (): array => $this->assets)->call($panel)[CrittersPlugin::ASSET_PACKAGE])
         ->keyBy(fn ($asset): string => $asset->getId());
 
-    foreach (array_keys(CrittersPlugin::BUILT_IN_CREATURES) as $creature) {
+    foreach (CrittersPlugin::BUILT_IN_CREATURES as $creature) {
         $sprite = $assets[CrittersPlugin::spriteAssetId($creature)];
 
         expect($sprite)->toBeInstanceOf(Css::class)
@@ -235,3 +240,73 @@ it('names built-in creatures naturally in the pet control', function (string $cr
     ['sparky', 'Pet Sparky'],
     ['tabby', 'Pet the tabby'],
 ]);
+
+it('offers no choices in ambient mode or when turned off', function (): void {
+    expect(CrittersPlugin::make()->environment('ambient')->getChoices())->toBe([])
+        ->and(CrittersPlugin::make()->choices(false)->getChoices())->toBe([]);
+});
+
+it('limits choices, allows custom creatures, and needs at least two', function (): void {
+    Filament::setCurrentPanel('admin');
+
+    $config = CrittersPlugin::make()->choices(['dog', 'tabby', 'dog'])->getConfig();
+
+    expect($config['choices'])->toBe(['dog', 'tabby'])
+        ->and(array_keys($config['sprites']))->toBe(['dog'])
+        ->and(CrittersPlugin::make()->choices(['dog'])->getChoices())->toBe([])
+        ->and(CrittersPlugin::make()->choices(fn (): array => ['cat', 'atlas'])->getChoices())->toBe(['cat', 'atlas']);
+});
+
+it('shows the change critter menu item only when there is a choice', function (): void {
+    $this->actingAs(User::factory()->create());
+
+    Filament::setCurrentPanel('admin');
+    expect(Filament::getCurrentPanel()->getUserMenuItems())->toHaveKey('critters-choose')
+        ->and(Filament::getCurrentPanel()->getUserMenuItems()['critters-choose']->getAlpineClickHandler())->toBe('window.Critters?.choose()');
+
+    Filament::setCurrentPanel('aquarium');
+    expect(Filament::getCurrentPanel()->getUserMenuItems())->not->toHaveKey('critters-choose');
+});
+
+it('sends translated text and creature names to the browser', function (): void {
+    Filament::setCurrentPanel('admin');
+
+    $config = CrittersPlugin::make()->choices(['cat', 'sparky', 'tabby'])->getConfig();
+
+    expect($config['strings'])->toMatchArray([
+        'pickerTitle' => 'Choose your critter',
+        'pickerClose' => 'Close',
+        'petted' => 'You petted :creature.',
+        'nowShowing' => 'Now showing :creature.',
+    ])
+        ->and($config['names'])->toBe([
+            'cat' => ['title' => 'Cat', 'label' => 'the cat'],
+            'sparky' => ['title' => 'Sparky', 'label' => 'Sparky'],
+        ]);
+});
+
+it('follows the application locale', function (): void {
+    $this->actingAs(User::factory()->create());
+
+    app('translator')->addLines([
+        'critters.menu.pet' => 'Streichle :creature',
+        'critters.menu.choose' => 'Tier wechseln',
+        'critters.picker.title' => 'Wähle dein Tierchen',
+        'critters.announcements.petted' => 'Du hast :creature gestreichelt.',
+        'critters.creatures.cat.title' => 'Katze',
+        'critters.creatures.cat.label' => 'die Katze',
+    ], 'de', 'critters');
+    app()->setLocale('de');
+
+    Filament::setCurrentPanel('admin');
+    $panel = Filament::getCurrentPanel();
+    $config = $panel->getPlugin('critters')->getConfig();
+
+    expect($panel->getUserMenuItems()['critters-pet']->getLabel())->toBe('Streichle die Katze')
+        ->and($panel->getUserMenuItems()['critters-choose']->getLabel())->toBe('Tier wechseln')
+        ->and($config['strings']['pickerTitle'])->toBe('Wähle dein Tierchen')
+        ->and($config['strings']['petted'])->toBe('Du hast :creature gestreichelt.')
+        ->and($config['names']['cat'])->toBe(['title' => 'Katze', 'label' => 'die Katze'])
+        // Untranslated keys fall back to English.
+        ->and($config['strings']['pickerClose'])->toBe('Close');
+});

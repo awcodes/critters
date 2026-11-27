@@ -565,6 +565,15 @@ That they surfaced at all argues for keeping the real-browser suite as the prima
 - **Workbench:** a `zoo` panel previews any land creature (`/zoo?critter=sparky`).
 - **Tests:** a browser test walks, pets and carries every creature, checking walk frames 0–3, pet 10–11 and carried 12–13, and that only its stylesheet loads. Results: 148 browser tests across Chromium, Firefox and WebKit, 140 Vitest and 22 Pest tests, all passing.
 - **Sizes:** sprite stylesheets are 10.5–19.7 KB each, and only one is downloaded per page.
+- **Choosing a critter, without a database:**
+  - A "Change critter" user-menu item opens an accessible picker: a native modal `<dialog>` with a focus trap and Escape to close, where options are buttons with `aria-pressed` and real sprite previews.
+  - The pick is stored in `localStorage` per panel (`critters:<panel>:creature`), the same mechanism as the hide preference. The server sends the offered choices and their built-in sprite URLs in the config. The runtime applies a remembered pick only while it is still offered, and loads that creature's stylesheet on demand.
+  - `->choices([...])` limits the list (custom creatures allowed) and `->choices(false)` turns picking off. Defaults: every built-in land creature in panel mode, none in ambient mode.
+  - **Trade-off:** the choice is per browser, not per account. If a choice should follow the user, the existing `creature(fn () => …)` closure can read wherever the application already stores user preferences.
+  - **Found by WebKit:** the closing user menu moved focus to `<body>` after the dialog had focused its option. The picker now marks the current option `autofocus` and restores focus once on the next frame.
+  - Browser tests cover keyboard switching, persistence across reloads and SPA navigation, per-panel isolation, closing without changes, and ambient panels having no picker. Totals: 160 browser tests across three engines, 149 Vitest and 25 Pest tests.
+  - **Translatable:** all user-facing text lives in `resources/lang/en/critters.php` (menu items, picker, announcements, built-in creature names). PHP sends translated strings and names in the config, and the JS falls back to English. A German locale is covered by a Pest test.
+  - **Centring fix:** Filament's Tailwind reset sets `margin: 0` on every element, which removed the browser's default `margin: auto` centring of modal dialogs, so the picker sat in the top-left corner. It now restores `margin: auto`, and a browser test asserts the dialog is centred.
 - **Reproducible:** `bin/sprites/build.py` rebuilds every strip and `builtins.js` from the sheet. It validates before installing anything, and its output is byte-identical to the committed sprites. See `bin/sprites/README.md`.
 - **Still open:** this resolves "production artwork" from the M6 entry criteria only as far as the sheet's art goes. The motion of each animation hasn't been reviewed by eye beyond still frames and the browser tests, and a pixel artist's pass would improve frame-to-frame consistency.
 

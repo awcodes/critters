@@ -34,6 +34,7 @@ def render(descriptions):
 
         lines += [
             f'    {name}: {{',
+            f"        title: '{settings['title']}',",
             f"        label: '{settings['label']}',",
             f'        width: {size},',
             f'        height: {size},',

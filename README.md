@@ -35,6 +35,7 @@ CrittersPlugin::make()
     ->creature('cat')        // or a closure, e.g. fn () => auth()->user()->critter
     ->environment('panel')   // or 'ambient'
     ->behavior('wander')     // optional; defaults to the creature's own behavior
+    ->choices(['cat', 'dog', 'sparky'])   // what people may switch to; false turns picking off
     ->enabled(fn (): bool => auth()->user()?->likes_cats ?? true)
     ->interactive()          // pet and drag; false makes creatures fully click-through
     ->touchDevices(false);   // touch-only devices are opted out by default
@@ -48,6 +49,20 @@ Critters only render for signed-in users, on panels that register the plugin.
 - The **user menu** has *Pet the cat* and *Hide or show critters*, both keyboard-accessible. Hiding is remembered per panel in this browser.
 - Creatures never block the interface. They can't be clicked while passing over a control, they move away when a control they cover gets keyboard focus, and they hide while dropdowns and modals are open.
 - With reduced motion enabled, creatures stay still but can still be petted and moved.
+
+## Choosing a critter
+
+People can switch critters from the user menu (**Change critter**), which opens a small, keyboard-accessible picker. Their choice is remembered **in their browser, per panel**, so no database or migration is needed. The trade-off is that the choice doesn't follow them to another browser or device.
+
+By default, panels offer every built-in land creature, and ambient panels offer none. Use `->choices([...])` to limit the list, which may include your own registered creatures, or `->choices(false)` to turn picking off. The `creature()` you configure stays the default until someone picks.
+
+## Translations
+
+All text people see or hear (menu items, the picker, screen-reader announcements, built-in creature names) comes from `critters::critters`. Publish the language file to translate or adjust it:
+
+```bash
+php artisan vendor:publish --tag=critters-translations
+```
 
 ## Surfaces
 

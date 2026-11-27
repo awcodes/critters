@@ -11,6 +11,7 @@
  */
 export const builtInCreatures = {
     cat: {
+        title: 'Cat',
         label: 'the cat',
         width: 64,
         height: 64,
@@ -39,6 +40,7 @@ export const builtInCreatures = {
         },
     },
     dog: {
+        title: 'Dog',
         label: 'the dog',
         width: 64,
         height: 64,
@@ -67,6 +69,7 @@ export const builtInCreatures = {
         },
     },
     lizard: {
+        title: 'Lizard',
         label: 'the lizard',
         width: 64,
         height: 64,
@@ -95,6 +98,7 @@ export const builtInCreatures = {
         },
     },
     fish: {
+        title: 'Fish',
         label: 'the fish',
         width: 64,
         height: 64,
@@ -123,6 +127,7 @@ export const builtInCreatures = {
         },
     },
     sparky: {
+        title: 'Sparky',
         label: 'Sparky',
         width: 64,
         height: 64,
@@ -151,6 +156,7 @@ export const builtInCreatures = {
         },
     },
     atlas: {
+        title: 'Atlas',
         label: 'Atlas',
         width: 85,
         height: 85,
@@ -179,6 +185,7 @@ export const builtInCreatures = {
         },
     },
     barney: {
+        title: 'Barney',
         label: 'Barney',
         width: 64,
         height: 64,

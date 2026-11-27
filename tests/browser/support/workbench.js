@@ -39,7 +39,20 @@ export async function ensureWorkbench() {
 }
 
 export async function ensureSession(browser) {
-    if (existsSync(STORAGE_STATE)) return
+    // A saved session can go stale (expired, or the Workbench database was rebuilt), so
+    // check it still reaches the panel rather than trusting the file's existence.
+    if (existsSync(STORAGE_STATE)) {
+        const context = await browser.newContext({ storageState: STORAGE_STATE })
+        const page = await context.newPage()
+
+        await page.goto(`${BASE_URL}/admin`)
+
+        const valid = !page.url().endsWith('/login')
+
+        await context.close()
+
+        if (valid) return
+    }
 
     console.log('Signing in to the Workbench …')
     mkdirSync(dirname(STORAGE_STATE), { recursive: true })

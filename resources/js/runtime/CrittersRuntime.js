@@ -2,6 +2,7 @@ import { DomSpriteRenderer } from '../renderers/DomSpriteRenderer.js'
 import { AmbientEnvironment } from '../environments/AmbientEnvironment.js'
 import { PanelEnvironment } from '../environments/PanelEnvironment.js'
 import { InteractionController } from '../interactions/InteractionController.js'
+import { CreaturePicker } from '../ui/CreaturePicker.js'
 import { AnimationScheduler } from './AnimationScheduler.js'
 import { configKey } from './config.js'
 import { CreatureInstance } from './CreatureInstance.js'
@@ -15,6 +16,17 @@ const GENERIC_OPEN_OVERLAYS = ['dialog[open]']
 
 const OBSTRUCTION_POLL_MS = 200
 
+/** English fallbacks; the panel sends translated `strings` in its config. */
+const DEFAULT_STRINGS = {
+    pickerTitle: 'Choose your critter',
+    pickerClose: 'Close',
+    petted: 'You petted :creature.',
+    hidden: 'Critters hidden.',
+    shown: 'Critters shown.',
+    nowShowing: 'Now showing :creature.',
+    shownAndNowShowing: 'Critters shown. Now showing :creature.',
+}
+
 export class CrittersRuntime {
     constructor({ registry, win = window, doc = document, scheduler, seed, surfaces = {}, overlays = [], interactionOptions = {} } = {}) {
         this.registry = registry
@@ -26,6 +38,8 @@ export class CrittersRuntime {
         this.seed = seed
         this.scheduler = scheduler ?? new AnimationScheduler({ raf: (cb) => win.requestAnimationFrame(cb), caf: (id) => win.cancelAnimationFrame(id) })
         this.config = null
+        this.serverConfig = null
+        this.picker = null
         this.overlay = null
         this.stage = null
         this.status = null
@@ -74,6 +88,7 @@ export class CrittersRuntime {
 
         const random = createRandom(this.seed)
 
+        this.ensureSprite(config.creature, config)
         this.config = config
         this.createOverlay(config)
         this.doc.body.appendChild(this.overlay)
@@ -90,7 +105,7 @@ export class CrittersRuntime {
             container: this.stage,
             options: this.interactionOptions,
             isStatic: () => this.state === 'static',
-            onPet: () => this.announce(`You petted ${definition.label ?? `the ${definition.name}`}.`),
+            onPet: () => this.announce(this.text('petted', this.nameOf(definition.name).label)),
         })
 
         this.cleanups.push(
@@ -182,6 +197,95 @@ export class CrittersRuntime {
         return this
     }
 
+    /** Opens the "Change critter" dialog, when this panel offers a choice. */
+    choose() {
+        const choices = this.serverConfig?.choices ?? []
+
+        if (!this.isMounted || choices.length < 2) return this
+
+        this.picker = new CreaturePicker({
+            doc: this.doc,
+            choices,
+            current: this.config.creature,
+            strings: { title: this.text('pickerTitle'), close: this.text('pickerClose') },
+            describe: (name) => {
+                this.ensureSprite(name, this.serverConfig)
+
+                return { title: this.nameOf(name).title, definition: this.registry.creature(name) }
+            },
+            onPick: (name) => this.setCreature(name),
+            onClose: () => (this.picker = null),
+        }).open()
+
+        return this
+    }
+
+    /**
+     * Switches to another offered creature and remembers it in this browser (per panel).
+     * No server or database is involved.
+     */
+    setCreature(name) {
+        const serverConfig = this.serverConfig
+
+        if (!serverConfig?.choices?.includes(name) || !this.registry.creature(name)) return this
+
+        const { label } = this.nameOf(name)
+        const wasHidden = this.hidden
+
+        // Picking a critter means wanting to see one, so it also un-hides.
+        this.writePreference('creature', name)
+        if (wasHidden) this.writeHidden(false)
+
+        this.destroy()
+        this.mount(this.withChoice(serverConfig)).start()
+        this.stats.reconfigurations++
+        this.announce(this.text(wasHidden ? 'shownAndNowShowing' : 'nowShowing', label))
+
+        return this
+    }
+
+    /** Translated text from the panel (English fallback), with `:creature` filled in. */
+    text(key, creature = '') {
+        const template = this.serverConfig?.strings?.[key] ?? DEFAULT_STRINGS[key] ?? key
+
+        return template.replaceAll(':creature', creature)
+    }
+
+    /**
+     * How to name a creature: the panel's translated names for built-ins, else the JS
+     * definition's own `title`/`label`, else a default from its registered name.
+     */
+    nameOf(name) {
+        const translated = this.serverConfig?.names?.[name]
+        const definition = this.registry.creature(name)
+
+        return {
+            title: translated?.title ?? definition?.title ?? name.charAt(0).toUpperCase() + name.slice(1),
+            label: translated?.label ?? definition?.label ?? `the ${name}`,
+        }
+    }
+
+    /** The server's config with this browser's remembered creature applied, if still offered. */
+    withChoice(config) {
+        const choice = this.readPreference('creature', config)
+
+        return choice && choice !== config.creature && config.choices?.includes(choice) && this.registry.creature(choice) ? { ...config, creature: choice } : config
+    }
+
+    /** Loads a built-in creature's sprite stylesheet if the page doesn't have it yet. */
+    ensureSprite(name, config) {
+        const href = config?.sprites?.[name]
+
+        if (!href || this.doc.head.querySelector(`link[data-critters-sprite="${name}"]`)) return
+
+        const link = this.doc.createElement('link')
+
+        link.rel = 'stylesheet'
+        link.href = href
+        link.dataset.crittersSprite = name
+        this.doc.head.appendChild(link)
+    }
+
     toggleHidden() {
         return this.setHidden(!this.hidden)
     }
@@ -194,7 +298,7 @@ export class CrittersRuntime {
         if (hidden) this.cancelInteractions('hidden-by-user')
 
         this.toggle('hidden-by-user', hidden)
-        this.announce(hidden ? 'Critters hidden.' : 'Critters shown.')
+        this.announce(this.text(hidden ? 'hidden' : 'shown'))
 
         return this
     }
@@ -238,6 +342,7 @@ export class CrittersRuntime {
         }
 
         this.scheduler.stop()
+        this.picker?.close()
         this.interactions?.destroy()
         this.cleanups.forEach((cleanup) => cleanup())
         this.cleanups = []
@@ -258,12 +363,15 @@ export class CrittersRuntime {
      * Brings the runtime in line with the panel config found in the current document:
      * mounts, remounts, destroys, or re-attaches the overlay to a replaced <body>.
      */
-    sync(config) {
+    sync(serverConfig) {
         this.removeStrayOverlays()
+        this.serverConfig = serverConfig
 
-        if (!config) {
+        if (!serverConfig) {
             return this.destroy()
         }
+
+        const config = this.withChoice(serverConfig)
 
         if (!this.isMounted) {
             return this.mount(config).start()
@@ -340,24 +448,31 @@ export class CrittersRuntime {
         this.win.setTimeout(() => this.status && (this.status.textContent = message), 50)
     }
 
-    storageKey() {
-        return `critters:${this.config.panel}:hidden`
+    /** Per-panel preferences live in localStorage: `critters:<panel>:<key>`. */
+    readPreference(key, config = this.config) {
+        try {
+            return this.win.localStorage?.getItem(`critters:${config.panel}:${key}`) ?? null
+        } catch {
+            return null
+        }
+    }
+
+    writePreference(key, value, config = this.config) {
+        try {
+            const storageKey = `critters:${config.panel}:${key}`
+
+            value === null ? this.win.localStorage?.removeItem(storageKey) : this.win.localStorage?.setItem(storageKey, value)
+        } catch {
+            // Storage can be unavailable (privacy modes); the change still applies to this page.
+        }
     }
 
     readHidden() {
-        try {
-            return this.win.localStorage?.getItem(this.storageKey()) === '1'
-        } catch {
-            return false
-        }
+        return this.readPreference('hidden') === '1'
     }
 
     writeHidden(hidden) {
-        try {
-            hidden ? this.win.localStorage?.setItem(this.storageKey(), '1') : this.win.localStorage?.removeItem(this.storageKey())
-        } catch {
-            // Storage can be unavailable (privacy modes); hiding still works for this page.
-        }
+        this.writePreference('hidden', hidden ? '1' : null)
     }
 
     listen(target, event, handler, options) {

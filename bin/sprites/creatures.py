@@ -18,13 +18,13 @@ LAYOUT = {
 }
 
 CREATURES = {
-    'cat': dict(label='the cat', kind=LAND, cell=96, speed=36, behavior='wander'),
-    'dog': dict(label='the dog', kind=LAND, cell=96, speed=44, behavior='wander'),
-    'lizard': dict(label='the lizard', kind=LAND, cell=96, speed=28, behavior='wander'),
-    'fish': dict(label='the fish', kind=SWIM, cell=96, speed=30, behavior='swim'),
-    'sparky': dict(label='Sparky', kind=LAND, cell=96, speed=40, behavior='wander'),
-    'atlas': dict(label='Atlas', kind=LAND, cell=128, speed=32, behavior='wander'),
-    'barney': dict(label='Barney', kind=LAND, cell=96, speed=30, behavior='wander'),
+    'cat': dict(title='Cat', label='the cat', kind=LAND, cell=96, speed=36, behavior='wander'),
+    'dog': dict(title='Dog', label='the dog', kind=LAND, cell=96, speed=44, behavior='wander'),
+    'lizard': dict(title='Lizard', label='the lizard', kind=LAND, cell=96, speed=28, behavior='wander'),
+    'fish': dict(title='Fish', label='the fish', kind=SWIM, cell=96, speed=30, behavior='swim'),
+    'sparky': dict(title='Sparky', label='Sparky', kind=LAND, cell=96, speed=40, behavior='wander'),
+    'atlas': dict(title='Atlas', label='Atlas', kind=LAND, cell=128, speed=32, behavior='wander'),
+    'barney': dict(title='Barney', label='Barney', kind=LAND, cell=96, speed=30, behavior='wander'),
 }
 
 # Card interiors (rows, in sheet pixels) and per-frame manual fixes.

@@ -27,17 +27,10 @@ class CrittersPlugin implements Plugin
     public const array ENVIRONMENTS = ['panel', 'ambient'];
 
     /**
-     * Built-in creatures (each sprite ships as its own stylesheet) and how to refer to them.
+     * Built-in creatures; each sprite ships as its own stylesheet. Their names live in
+     * resources/lang (`critters::critters.creatures.<name>`).
      */
-    public const array BUILT_IN_CREATURES = [
-        'cat' => 'the cat',
-        'dog' => 'the dog',
-        'lizard' => 'the lizard',
-        'fish' => 'the fish',
-        'sparky' => 'Sparky',
-        'atlas' => 'Atlas',
-        'barney' => 'Barney',
-    ];
+    public const array BUILT_IN_CREATURES = ['cat', 'dog', 'lizard', 'fish', 'sparky', 'atlas', 'barney'];
 
     protected bool | Closure $isEnabled = true;
 
@@ -53,6 +46,9 @@ class CrittersPlugin implements Plugin
 
     protected ?string $region = null;
 
+    /** @var array<string> | bool | Closure */
+    protected array | bool | Closure $choices = true;
+
     public static function make(): static
     {
         return app(static::class);
@@ -61,6 +57,13 @@ class CrittersPlugin implements Plugin
     public static function spriteAssetId(string $creature): string
     {
         return "critters-creature-{$creature}";
+    }
+
+    public static function spriteAsset(string $creature): Css
+    {
+        return Css::make(self::spriteAssetId($creature), __DIR__ . "/../resources/dist/creatures/{$creature}.css")
+            ->package(self::ASSET_PACKAGE)
+            ->loadedOnRequest();
     }
 
     public function getId(): string
@@ -77,8 +80,8 @@ class CrittersPlugin implements Plugin
 
         // Every built-in sprite is published, but only the creature shown on a page is linked
         // (see renderSprite()), which also lets the creature be chosen per request or per user.
-        foreach (array_keys(self::BUILT_IN_CREATURES) as $creature) {
-            $assets[] = Css::make(self::spriteAssetId($creature), __DIR__ . "/../resources/dist/creatures/{$creature}.css")->loadedOnRequest();
+        foreach (self::BUILT_IN_CREATURES as $creature) {
+            $assets[] = self::spriteAsset($creature);
         }
 
         $panel
@@ -88,12 +91,17 @@ class CrittersPlugin implements Plugin
             ->userMenuItems([
                 // Keyboard-accessible controls that work wherever the creature is on screen.
                 'critters-pet' => Action::make('critters-pet')
-                    ->label(fn (): string => __('Pet :creature', ['creature' => $this->getCreatureLabel()]))
+                    ->label(fn (): string => __('critters::critters.menu.pet', ['creature' => $this->getCreatureLabel()]))
                     ->icon(Heroicon::OutlinedHeart)
                     ->alpineClickHandler('window.Critters?.pet()')
                     ->visible(fn (): bool => $this->isEnabled() && $this->isInteractive()),
+                'critters-choose' => Action::make('critters-choose')
+                    ->label(fn (): string => __('critters::critters.menu.choose'))
+                    ->icon(Heroicon::OutlinedSparkles)
+                    ->alpineClickHandler('window.Critters?.choose()')
+                    ->visible(fn (): bool => $this->isEnabled() && count($this->getChoices()) > 1),
                 'critters-toggle' => Action::make('critters-toggle')
-                    ->label(__('Hide or show critters'))
+                    ->label(fn (): string => __('critters::critters.menu.toggle'))
                     ->icon(Heroicon::OutlinedEyeSlash)
                     ->alpineClickHandler('window.Critters?.toggleHidden()')
                     ->visible(fn (): bool => $this->isEnabled()),
@@ -166,6 +174,21 @@ class CrittersPlugin implements Plugin
     }
 
     /**
+     * The creatures each person may switch to from the user menu. Their pick is stored in
+     * their browser (per panel), so no database is involved. Defaults to every built-in
+     * land creature in the panel environment; ambient panels offer none. `false` turns
+     * picking off; custom (JavaScript-registered) creature names may be included.
+     *
+     * @param  array<string> | bool | Closure  $creatures
+     */
+    public function choices(array | bool | Closure $creatures = true): static
+    {
+        $this->choices = $creatures;
+
+        return $this;
+    }
+
+    /**
      * The CSS selector of the element an ambient creature lives in. Without one, ambient
      * creatures use the first `[data-critters-region]` element, else the viewport.
      */
@@ -181,11 +204,50 @@ class CrittersPlugin implements Plugin
         return (string) $this->evaluate($this->creature);
     }
 
-    public function getCreatureLabel(): string
+    public function getCreatureLabel(?string $creature = null): string
     {
-        $creature = $this->getCreature();
+        return $this->describeCreature($creature ?? $this->getCreature())['label'];
+    }
 
-        return self::BUILT_IN_CREATURES[$creature] ?? "the {$creature}";
+    /**
+     * How a creature is named in the picker (`title`) and in sentences (`label`). Built-ins
+     * are translated; other creatures get a sensible English default (the JavaScript
+     * definition's own title and label win in the browser).
+     *
+     * @return array{title: string, label: string}
+     */
+    public function describeCreature(string $creature): array
+    {
+        if (in_array($creature, self::BUILT_IN_CREATURES, true)) {
+            return [
+                'title' => __("critters::critters.creatures.{$creature}.title"),
+                'label' => __("critters::critters.creatures.{$creature}.label"),
+            ];
+        }
+
+        return ['title' => ucfirst($creature), 'label' => "the {$creature}"];
+    }
+
+    /**
+     * @return array<string>
+     */
+    public function getChoices(): array
+    {
+        $choices = $this->evaluate($this->choices);
+
+        if ($choices === false) {
+            return [];
+        }
+
+        if ($choices === true) {
+            $choices = $this->environment === 'ambient'
+                ? []
+                : array_values(array_diff(self::BUILT_IN_CREATURES, ['fish']));
+        }
+
+        $choices = array_values(array_unique(array_map(strval(...), $choices)));
+
+        return count($choices) > 1 ? $choices : [];
     }
 
     public function isEnabled(): bool
@@ -199,18 +261,42 @@ class CrittersPlugin implements Plugin
     }
 
     /**
-     * @return array{panel: string, creature: string, environment: string, behavior: ?string, region: ?string, interactive: bool, touch: bool}
+     * @return array{panel: string, creature: string, environment: string, behavior: ?string, region: ?string, interactive: bool, touch: bool, choices: array<string>, sprites: array<string, string>, names: array<string, array{title: string, label: string}>, strings: array<string, string>}
      */
     public function getConfig(): array
     {
+        $creature = $this->getCreature();
+
         return [
             'panel' => filament()->getCurrentOrDefaultPanel()->getId(),
-            'creature' => $this->getCreature(),
+            'creature' => $creature,
             'environment' => $this->environment,
             'behavior' => $this->behavior,
             'region' => $this->region,
             'interactive' => $this->isInteractive(),
             'touch' => $this->hasTouchDevices,
+            'choices' => $choices = $this->getChoices(),
+            // Built-in sprites a person may switch to, so the browser can load the one they pick.
+            'sprites' => collect($choices)
+                ->filter(fn (string $choice): bool => in_array($choice, self::BUILT_IN_CREATURES, true))
+                ->mapWithKeys(fn (string $choice): array => [$choice => self::spriteAsset($choice)->getHref()])
+                ->all(),
+            // Translated names for built-ins on this page; custom creatures name themselves.
+            'names' => collect([$creature, ...$choices])
+                ->unique()
+                ->filter(fn (string $name): bool => in_array($name, self::BUILT_IN_CREATURES, true))
+                ->mapWithKeys(fn (string $name): array => [$name => $this->describeCreature($name)])
+                ->all(),
+            // Text the browser shows or announces; `:creature` is replaced with a label.
+            'strings' => [
+                'pickerTitle' => __('critters::critters.picker.title'),
+                'pickerClose' => __('critters::critters.picker.close'),
+                'petted' => __('critters::critters.announcements.petted'),
+                'hidden' => __('critters::critters.announcements.hidden'),
+                'shown' => __('critters::critters.announcements.shown'),
+                'nowShowing' => __('critters::critters.announcements.now_showing'),
+                'shownAndNowShowing' => __('critters::critters.announcements.shown_and_now_showing'),
+            ],
         ];
     }
 
@@ -227,7 +313,7 @@ class CrittersPlugin implements Plugin
     {
         $creature = $this->getCreature();
 
-        if (! $this->shouldRender() || ! array_key_exists($creature, self::BUILT_IN_CREATURES)) {
+        if (! $this->shouldRender() || ! in_array($creature, self::BUILT_IN_CREATURES, true)) {
             return null;
         }
 

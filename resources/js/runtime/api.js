@@ -31,6 +31,8 @@ export function createCrittersApi({ runtime, registry, sync, win = window, doc =
             return api
         },
         pet: () => runtime.pet(),
+        choose: () => runtime.choose(),
+        setCreature: (name) => runtime.setCreature(name),
         toggleHidden: () => runtime.toggleHidden(),
     }
 
