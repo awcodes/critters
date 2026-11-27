@@ -36,6 +36,17 @@ CrittersPlugin::make()
 
 Critters only render for signed-in users, on panels that register the plugin.
 
+## Surfaces
+
+Creatures walk along the bottom of the viewport and hop onto contained Filament sections. You can opt other elements in or out:
+
+```html
+<div data-critters-surface="sidebar-card">…</div>    <!-- a ledge with a stable logical id -->
+<div data-critters-ignore>…</div>                     <!-- nothing inside is ever a ledge -->
+```
+
+Interactive elements (buttons, links, form controls, focusable elements, dialogs, menus) are never used as ledges, even when marked, and creatures walk aside rather than resting in front of them.
+
 ## Development
 
 ```bash

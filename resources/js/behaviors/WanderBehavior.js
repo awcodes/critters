@@ -9,6 +9,11 @@ export class WanderBehavior {
         sleep: { duration: [10, 25], next: { idle: 1 } },
     }
 
+    /** Chance per second of hopping to a reachable ledge mid-walk, and when blocked. */
+    static hopRate = 0.15
+
+    static hopWhenBlocked = 0.6
+
     constructor({ random, actions = WanderBehavior.actions } = {}) {
         this.random = random
         this.actions = actions
@@ -54,6 +59,16 @@ export class WanderBehavior {
         this.remaining = duration ?? this.random.between(...definition.duration)
 
         return this.intent
+    }
+
+    /**
+     * The environment offers abstract hop options ({ rise, distance }); returns the index
+     * of the one to take, or null to stay on the current ledge.
+     */
+    chooseHop(options, { delta, blocked }) {
+        const chance = blocked ? WanderBehavior.hopWhenBlocked : 1 - Math.exp(-WanderBehavior.hopRate * delta)
+
+        return this.random.next() < chance ? Math.floor(this.random.next() * options.length) : null
     }
 
     /** The environment reports when movement is blocked so the creature turns around. */

@@ -22,6 +22,7 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Workbench\App\Filament\Pages\Auth\Login;
 use Workbench\App\Filament\Pages\SecondPage;
+use Workbench\App\Filament\Pages\SurfacesPage;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -33,6 +34,7 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login(Login::class)
             ->spa()
+            ->sidebarCollapsibleOnDesktop()
             ->plugins([
                 CrittersPlugin::make(),
             ])
@@ -42,6 +44,7 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 Dashboard::class,
                 SecondPage::class,
+                SurfacesPage::class,
             ])
             ->middleware([
                 EncryptCookies::class,

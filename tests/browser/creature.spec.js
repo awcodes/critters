@@ -63,7 +63,7 @@ test('the cat turns around at the viewport edge instead of leaving it', async ({
 
     await runtime(page, () => {
         const { creature } = window.Critters.runtime
-        creature.position = { ...creature.position, x: document.documentElement.clientWidth - 70 }
+        creature.placement = { ...creature.placement, offset: document.documentElement.clientWidth - 70 }
         creature.behavior.transition('walk', { duration: 60 })
         creature.behavior.direction = 1
     })
@@ -80,7 +80,7 @@ test('the cat stays on screen when the viewport shrinks', async ({ page }) => {
     await visit(page)
     await runtime(page, () => {
         const { creature } = window.Critters.runtime
-        creature.position = { ...creature.position, x: document.documentElement.clientWidth - 64 }
+        creature.placement = { ...creature.placement, offset: document.documentElement.clientWidth - 64 }
     })
 
     await page.setViewportSize({ width: 700, height: 500 })

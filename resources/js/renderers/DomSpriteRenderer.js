@@ -21,7 +21,7 @@ export class DomSpriteRenderer {
         container.appendChild(this.el)
     }
 
-    render({ position, direction, frame, action }) {
+    render({ position, direction, frame, action, surface = null }) {
         const facing = this.definition.skin.facing === 'left' ? -direction : direction
         const transform = `translate3d(${position.x.toFixed(1)}px, ${position.y.toFixed(1)}px, 0) scaleX(${facing})`
 
@@ -34,6 +34,11 @@ export class DomSpriteRenderer {
             this.el.style.backgroundPosition = `${-frame * this.definition.width}px 0`
             this.el.dataset.crittersFrame = frame
             this.last.frame = frame
+        }
+
+        if (surface !== this.last.surface) {
+            surface === null ? delete this.el.dataset.crittersSurfaceId : (this.el.dataset.crittersSurfaceId = surface)
+            this.last.surface = surface
         }
 
         if (action !== this.last.action) {

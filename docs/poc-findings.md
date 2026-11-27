@@ -143,6 +143,104 @@ The overlay is currently `position: fixed; z-index: 35; pointer-events: none`, w
 - The 64 px display box is larger than the visible cat (the cell has padding above sitting and sleeping poses). M4 hitboxes must follow the visible bounds per action, not the cell.
 - The JS unit and browser suites are not yet in CI: the shared `awcodes/.github` workflow is PHP-only. This has to be resolved before M6.
 
+## M3: surface navigation
+
+**Gate result: pass, in the real Filament workbench.** The cat discovers ledges and hops between them, rides a ledge while the page scrolls, and falls to the ledge below when its own is removed or scrolls under the top bar. A hop is cancelled into a fall when its target disappears mid-flight. The cat walks aside rather than resting in front of a control, and stays correct through sidebar collapse, Livewire form submissions and back/forward navigation. Evidence: 72 Vitest tests and 22 browser tests, stable across 3 repeat runs (`tests/browser/surfaces.spec.js` covers M3).
+
+### Workbench
+
+`/admin/surfaces` (`workbench/app/Filament/Pages/SurfacesPage.php`) contains:
+
+- a Livewire form (name input and Save button);
+- an explicitly marked section (`upper-shelf`);
+- a marked section that a Livewire action removes and restores (`removable-shelf`);
+- an action row in which one button carries `data-critters-surface` (it must be rejected);
+- an unmarked contained section, found by the Filament adapter (`section:Lower shelf`).
+
+The admin panel is now `->sidebarCollapsibleOnDesktop()`.
+
+### Discovery and classification (`navigation/SurfaceDiscovery.js`)
+
+1. **Explicit markers first:** `[data-critters-surface="<logical-id>"]`, with an optional `data-critters-surface-type` (default `perch`). `data-critters-surface="none"` and `data-critters-ignore` exclude a whole region.
+2. **Filament adapter second** (`integration/filament.js`), deliberately small:
+   - `.fi-section:not(.fi-section-not-contained)` — contained card sections. Class names verified in `vendor/filament/schemas/resources/views/components/section.blade.php`.
+   - Logical ID: `section#<id>`, otherwise `section:<heading text>`, otherwise `section:<index>`. Repeated IDs get a `~n` suffix.
+3. **Filament quirk:** `Section::make()->extraAttributes()` lands on a wrapper `div.fi-sc-section`, not on the `.fi-section` itself. An adapter match inside a marker is therefore skipped, so the same section isn't counted twice.
+4. **Rejected even when marked:**
+   - interactive elements (links, buttons, form controls, focusable `tabindex`, interactive ARIA roles, `contenteditable`);
+   - anything inside a dialog, menu, listbox, popover or `aria-modal`;
+   - anything inside the Critters overlay.
+
+   Verified: the marked button is reported as `{ id: 'not-a-surface', reason: 'interactive' }`.
+5. **Clipping ancestors** (computed `overflow` not visible) are found once per discovery, not per measurement.
+
+### Geometry (one batch per frame, only after invalidation)
+
+- Each candidate becomes a viewport-space ledge `{ id, left, right, top }` from `getBoundingClientRect()`, in the same coordinate space as the fixed overlay. The span is clipped to the viewport and to any clipping ancestors.
+- A ledge is rejected when it is:
+  - disconnected;
+  - hidden (`checkVisibility`);
+  - narrower than the creature;
+  - without room above it inside the viewport;
+  - scrolled out of a clipping ancestor;
+  - **occluded**: the creature's standing band would overlap fixed chrome. The adapter names `.fi-topbar` as an occluder (sticky, `z-30`).
+- The viewport floor (Stage A) is always present as the `floor` ledge, so there is always a fallback.
+
+### Invalidation and observation (`environments/PanelEnvironment.js`)
+
+| Source | Effect |
+| --- | --- |
+| `scroll` on `window` (capture, passive, so nested scrollers count too) | re-measure |
+| `ResizeObserver` on `<html>` and every discovered surface element | re-measure (catches sidebar collapse, content growth) |
+| `MutationObserver` (`childList`, `subtree`) on `<body>`, ignoring mutations inside the overlay | rediscover and re-measure (Livewire morphs, Alpine `x-if`) |
+| `window` and `visualViewport` resize, `runtime.sync()` after `<body>` replacement | rediscover and re-measure |
+
+- Invalidation only sets flags. Measuring happens once, in the next animation frame. The body observer re-binds to the new `<body>` after SPA navigation.
+- `destroy()` disconnects all observers and listeners (unit-tested).
+- Elements that move without resizing and without a scroll (CSS transforms or animations) are **not** detected. That's acceptable for Filament layouts, but recorded as a limitation.
+
+### Placement, hops and falls (`navigation/SurfaceGraph.js`)
+
+- **Anchoring:** a placement stores its ledge ID and its offset from the ledge's left edge, so the cat rides along when the ledge scrolls or shifts (verified with scrolling and sidebar collapse). Logical IDs, not DOM nodes, connect measurements over time.
+- **The single transition type is a hop.** A target ledge qualifies when:
+  - it is at most 200 px higher or 320 px lower;
+  - the height difference is at least 8 px;
+  - a landing spot exists within 160 px horizontally.
+
+  The flight is a parabolic arc lasting `0.4 s + |rise|/700`. The landing point follows the target ledge if it moves mid-flight. No general pathfinding.
+- **Behavior decides, environment resolves:** the environment offers abstract options (`{ rise, distance }`), and `WanderBehavior.chooseHop()` takes one about 0.15 times per second while walking, or with probability 0.6 when blocked at a ledge's end. Otherwise the cat turns around.
+- **Falls:** if a creature's ledge disappears (removed, scrolled under the top bar, clipped away), it falls to the nearest ledge below its centre, and ultimately to the floor. A hop whose target vanishes is cancelled into a fall from the creature's current position. A cancelled hop that hasn't left its origin falls back onto that origin, which is physically correct. Relocation is always animated, never a teleport.
+- **Animation fallbacks added:** `hop → walk`, `fall → hop → walk`.
+
+### Safe settling
+
+- When the behavior wants to rest (`idle` or `sleep`), the environment checks the creature's standing band against the visible interactive elements, with a 4 px margin.
+- If the cat would cover one, it walks to the nearest safe spot on its ledge first. If the ledge has no safe spot, it keeps walking rather than settling. Walking past a control is allowed because the overlay is click-through.
+- Verified in the browser: dropped in front of the Save button, the cat walks aside before idling.
+- The interactive-element measurements are reused while invalidations keep arriving (150 ms quiet period), so continuous scrolling doesn't query every control on every frame.
+
+### Bug found: Livewire back/forward restores a dead overlay
+
+- Livewire stores the page HTML for back/forward restoration (`updateCurrentPageHtmlInHistoryStateForLaterBackButtonClicks()`), and that snapshot includes the Critters overlay. Restoring it put an inert copy of the overlay and cat next to the live one (2 overlays).
+- **Fix (framework-agnostic):** `runtime.sync()` removes every `[data-critters-overlay]` that isn't the runtime's own. It is counted in `stats.strays` and asserted in the back/forward browser test.
+
+### Measurements (headless Chromium, `tests/browser/perf.measure.js`)
+
+| Scenario | Layouts | Style recalcs | Script ms | Task ms | Surface measurements |
+| --- | --- | --- | --- | --- | --- |
+| Surfaces page, ~5.5 s of wheel scrolling, runtime destroyed | 1 | 1 | 0 | 72 | 0 |
+| Same, sleeping cat riding a shelf | **0** forced | 417 | 186 | 467 | 102 (≈ one per scroll event, batched) |
+
+M2 figures (walking and sleeping on the floor) are unchanged within noise. Surface measurement reads geometry only after the browser has laid out the frame, so it never forces a synchronous layout.
+
+### Limitations and carried-forward items
+
+- **Boundary** surfaces (walls or no-go zones as a separate type) are not implemented. Excluded regions cover the POC need.
+- Hops don't check for obstacles in their flight path, since the overlay is click-through. They are also free to land in front of a control; the creature then walks aside before resting.
+- **For M4:** when creature hit targets become `pointer-events: auto`, a cat walking across a control would briefly intercept clicks. Hit targets need to be disabled while overlapping unsafe regions, or while moving.
+- **For M4:** dropdowns (`z-20`) and modals (`z-40` and up) are not occluders yet. The overlay sits at `z-35`, so it can draw over an open dropdown. M4 handles open overlays explicitly.
+- `contain: strict` on the overlay and per-frame `transform` writes keep style recalcs cheap. Recalc counts track frames, not DOM size.
+
 ## Deviations from the spec
 
 - Critters are not rendered on Filament auth pages (login and similar). The spec does not mention them, and a companion before sign-in adds nothing.

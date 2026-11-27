@@ -8,8 +8,9 @@ import { createRandom } from './random.js'
 const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
 
 export class CrittersRuntime {
-    constructor({ registry, win = window, doc = document, scheduler, seed } = {}) {
+    constructor({ registry, win = window, doc = document, scheduler, seed, surfaces = {} } = {}) {
         this.registry = registry
+        this.surfaces = surfaces
         this.win = win
         this.doc = doc
         this.seed = seed
@@ -47,7 +48,7 @@ export class CrittersRuntime {
         this.config = config
         this.overlay = this.createOverlay(config)
         this.doc.body.appendChild(this.overlay)
-        this.environment = new PanelEnvironment({ win: this.win, doc: this.doc })
+        this.environment = new PanelEnvironment({ win: this.win, doc: this.doc, adapter: this.surfaces }).connect()
         this.creature = new CreatureInstance({
             definition,
             behavior: new Behavior({ random }),
@@ -95,7 +96,8 @@ export class CrittersRuntime {
     }
 
     refreshSurfaces() {
-        this.environment?.invalidate()
+        this.environment?.observeBody()
+        this.environment?.invalidate({ rediscover: true })
 
         if (this.state === 'static') {
             this.creature.still()
@@ -113,6 +115,7 @@ export class CrittersRuntime {
         this.cleanups.forEach((cleanup) => cleanup())
         this.cleanups = []
         this.creature?.destroy()
+        this.environment?.destroy()
         this.overlay?.remove()
         this.overlay = this.creature = this.environment = this.config = this.reducedMotionQuery = null
         this.pauseReasons.clear()
@@ -128,6 +131,8 @@ export class CrittersRuntime {
      * mounts, remounts, destroys, or re-attaches the overlay to a replaced <body>.
      */
     sync(config) {
+        this.removeStrayOverlays()
+
         if (!config) {
             return this.destroy()
         }
@@ -149,6 +154,19 @@ export class CrittersRuntime {
         }
 
         return this.refreshSurfaces()
+    }
+
+    /**
+     * Client-side routers can snapshot the page HTML (overlay included) and restore it on
+     * back/forward, which brings back inert copies of the overlay. Only ours may remain.
+     */
+    removeStrayOverlays() {
+        this.doc.querySelectorAll('[data-critters-overlay]').forEach((overlay) => {
+            if (overlay !== this.overlay) {
+                overlay.remove()
+                this.stats.strays = (this.stats.strays ?? 0) + 1
+            }
+        })
     }
 
     toggle(reason, paused) {

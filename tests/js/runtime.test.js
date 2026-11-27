@@ -106,10 +106,13 @@ describe('CrittersRuntime', () => {
         const { runtime, frames } = makeRuntime()
 
         runtime.mount(config).start()
-        runtime.creature.position = { x: 380, y: 276 }
+        runtime.creature.placement = { ...runtime.creature.placement, offset: 380 }
 
         setViewport(100, 100)
         window.dispatchEvent(new Event('resize'))
+        frames.step(16)
+
+        runtime.creature.behavior.transition('idle', { duration: 100 })
         frames.step(16)
 
         expect(runtime.creature.position).toEqual({ x: 80, y: 76 })
@@ -148,6 +151,25 @@ describe('CrittersRuntime', () => {
             expect(runtime.overlay).toBe(overlay)
             expect(overlay.isConnected).toBe(true)
             expect(runtime.stats).toMatchObject({ mounts: 1, reattachments: 1 })
+        })
+
+        it('removes inert overlay copies restored from an HTML snapshot', () => {
+            const { runtime } = makeRuntime()
+
+            runtime.sync(config)
+            const snapshot = document.createElement('body')
+            snapshot.innerHTML = document.body.innerHTML
+            document.body.replaceWith(snapshot)
+            runtime.sync(config)
+
+            expect(document.querySelectorAll('[data-critters-overlay]')).toHaveLength(1)
+            expect(document.querySelector('[data-critters-overlay]')).toBe(runtime.overlay)
+            expect(runtime.stats.strays).toBe(1)
+
+            snapshot.appendChild(runtime.overlay.cloneNode(true))
+            runtime.sync(null)
+
+            expect(document.querySelectorAll('[data-critters-overlay]')).toHaveLength(0)
         })
 
         it('remounts when config changes and destroys when it disappears', () => {

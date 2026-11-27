@@ -77,3 +77,25 @@ export function setReducedMotion(matches) {
 
     return query
 }
+
+/** Gives an element a fixed viewport rect (jsdom has no layout). */
+export function setRect(el, { left = 0, top = 0, width = 0, height = 0 }) {
+    el.getBoundingClientRect = () => ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top })
+
+    return el
+}
+
+export function element(html) {
+    const wrapper = document.createElement('div')
+    wrapper.innerHTML = html.trim()
+    const el = wrapper.firstElementChild
+    document.body.appendChild(el)
+
+    return el
+}
+
+export const fixedClock = () => {
+    const clock = { t: 0, now: () => clock.t }
+
+    return clock
+}

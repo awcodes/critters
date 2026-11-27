@@ -33,10 +33,13 @@ Gotchas:
 ## Runtime layout (resources/js)
 
 - `runtime/`: `CrittersRuntime` (mount/start/pause/resume/refreshSurfaces/destroy/sync, pause *reasons*), `AnimationScheduler` (the single rAF loop, clamped delta), `CreatureInstance` (behavior + environment + renderer), `skin.js` (validation, animation fallbacks, `FrameClock`), `Registry`, `random.js` (seedable), `DocumentWatcher`, `config.js`.
+- `navigation/`: `SurfaceDiscovery` (markers → adapter selectors → rejection rules → viewport-space ledges, occluders, unsafe rects) and `SurfaceGraph` (hop targets, support below, safe intervals). Placements are `{ surfaceId, offset, x, y, hop }`; `offset` is relative to the ledge's left edge so creatures ride moving ledges.
 - `behaviors/` pick intents and never touch the DOM. `environments/` own geometry and measure only when invalidated. `renderers/` write styles only and never read layout.
 - Built-ins are registered in `critters.js`; `window.Critters.registerCreature/registerBehavior` is the experimental extension point.
 - The placeholder cat sprite is inlined into the bundle as a data URL (esbuild `dataurl` loader).
 
 ## Workbench
 
-Three panels: `admin` (SPA + Critters), `classic` (no SPA + Critters), `plain` (SPA, no Critters), used to test the full-load, SPA, and panel-exit lifecycles.
+Three panels: `admin` (SPA + Critters, collapsible sidebar), `classic` (no SPA + Critters), `plain` (SPA, no Critters), used to test the full-load, SPA, and panel-exit lifecycles. `/admin/surfaces` is the surface-navigation fixture (markers, adapter section, rejected marked button, removable shelf, Livewire form).
+
+Browser-test tip: pause the runtime (`runtime.pause('test')`) before forcing a placement, and assert on `creature.position` rather than the DOM until it resumes, because the renderer draws on the next frame.

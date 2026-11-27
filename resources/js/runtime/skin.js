@@ -11,6 +11,8 @@ export const ANIMATION_FALLBACKS = {
     sleep: 'idle',
     pet: 'idle',
     carried: 'idle',
+    hop: 'walk',
+    fall: 'hop',
 }
 
 export function validateSkin(skin) {
