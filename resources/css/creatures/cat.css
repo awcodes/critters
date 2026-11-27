@@ -1,0 +1,4 @@
+/* Built-in cat sprite, inlined at build time. Loaded only on panels that use the cat. */
+.critters-skin-cat {
+    background-image: url(../../sprites/placeholder-cat.png);
+}

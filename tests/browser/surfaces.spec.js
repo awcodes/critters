@@ -85,10 +85,16 @@ test('removing the ledge under the cat makes it fall to the next one, not telepo
     await placeOn(page, 'removable-shelf', 700)
     await expectStandingOn(page, 'removable-shelf')
 
+    // A short fall can finish between Playwright's polls, so record every action change.
+    await page.evaluate(() => {
+        window.__actions = []
+        const el = document.querySelector('[data-critters-creature]')
+        new MutationObserver(() => window.__actions.push(el.dataset.crittersAction)).observe(el, { attributeFilter: ['data-critters-action'] })
+    })
     await page.getByRole('button', { name: 'Toggle removable shelf' }).click()
 
-    await expect(cat(page)).toHaveAttribute('data-critters-action', 'fall')
-    await expect(cat(page)).toHaveAttribute('data-critters-surface-id', /.+/, { timeout: 3000 })
+    await expect.poll(() => page.evaluate(() => window.__actions), { timeout: 5000 }).toContain('fall')
+    await expect.poll(() => cat(page).getAttribute('data-critters-surface-id'), { timeout: 3000 }).toMatch(/^(?!removable-shelf$).+/)
 
     const id = await cat(page).getAttribute('data-critters-surface-id')
 
@@ -101,10 +107,11 @@ test('a hop whose target disappears is cancelled into a fall', async ({ page }) 
     await visit(page)
     await placeOn(page, 'upper-shelf', 700)
 
-    expect(await page.evaluate(() => window.Critters.runtime.creature.hopTo('removable-shelf'))).toBe(true)
-    // Freeze the cat mid-flight (the hop lasts ~0.6s), below the shelf it left.
-    await page.waitForTimeout(250)
+    // Put the cat mid-flight deterministically: start the hop while paused, then advance
+    // it by hand to about a third of its ~0.6s arc, below the shelf it left.
     await page.evaluate(() => window.Critters.runtime.pause('test'))
+    expect(await page.evaluate(() => window.Critters.runtime.creature.hopTo('removable-shelf'))).toBe(true)
+    await page.evaluate(() => window.Critters.runtime.creature.update(0.2))
     expect(await page.evaluate(() => window.Critters.runtime.creature.placement.hop?.surfaceId)).toBe('removable-shelf')
     await page.getByRole('button', { name: 'Toggle removable shelf' }).click()
     await expect(page.getByText('Removed and restored by a Livewire action.')).toHaveCount(0)

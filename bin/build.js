@@ -55,3 +55,11 @@ compile({
     entryPoints: ['./resources/css/critters.css'],
     outfile: './resources/dist/critters.css',
 }).then(() => console.log('Compile finished.'))
+
+for (const creature of ['cat', 'fish']) {
+    compile({
+        ...defaultOptions,
+        entryPoints: [`./resources/css/creatures/${creature}.css`],
+        outfile: `./resources/dist/creatures/${creature}.css`,
+    }).then(() => console.log('Compile finished.'))
+}

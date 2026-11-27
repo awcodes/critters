@@ -1,10 +1,15 @@
 // Manual measurement, not part of the suite: `node tests/browser/perf.measure.js [outDir]`.
+// Starts the Workbench on :8765 if it isn't already running.
 // Compares Chrome performance counters over 10s on a Critters panel and the plain panel.
 import { chromium } from '@playwright/test'
+import { BASE_URL, ensureSession, ensureWorkbench, STORAGE_STATE } from './support/workbench.js'
 
 const out = process.argv[2] ?? 'test-results'
+const stopWorkbench = await ensureWorkbench()
 const browser = await chromium.launch()
-const context = await browser.newContext({ storageState: 'tests/browser/.auth/user.json', viewport: { width: 1280, height: 800 } })
+await ensureSession(browser)
+
+const context = await browser.newContext({ storageState: STORAGE_STATE, viewport: { width: 1280, height: 800 } })
 const page = await context.newPage()
 const cdp = await context.newCDPSession(page)
 await cdp.send('Performance.enable')
@@ -12,7 +17,7 @@ await cdp.send('Performance.enable')
 const metrics = async () => Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map((m) => [m.name, m.value]))
 
 async function measure(path, action) {
-    await page.goto(`http://127.0.0.1:8765${path}`)
+    await page.goto(`${BASE_URL}${path}`)
     await page.waitForTimeout(1000)
     if (action) await page.evaluate((a) => window.Critters.runtime.creature.behavior.transition(a, { duration: 60 }), action)
     const a = await metrics()
@@ -38,7 +43,7 @@ console.table([await measure('/plain', null), await measure('/admin', 'walk'), a
 // destroyed against a sleeping cat riding a shelf.
 async function measureScroll(withCritters) {
     await page.setViewportSize({ width: 1280, height: 600 })
-    await page.goto('http://127.0.0.1:8765/admin/surfaces')
+    await page.goto(BASE_URL + '/admin/surfaces')
     await page.waitForTimeout(1000)
     await page.evaluate((keep) => {
         const { runtime } = window.Critters
@@ -72,7 +77,7 @@ console.table([await measureScroll(false), await measureScroll(true)])
 await page.setViewportSize({ width: 1280, height: 800 })
 
 for (const dark of [false, true]) {
-    await page.goto('http://127.0.0.1:8765/admin')
+    await page.goto(BASE_URL + '/admin')
     await page.evaluate((d) => { localStorage.setItem('filament:theme:mode', d ? 'dark' : 'light') }, dark)
     await page.reload()
     await page.evaluate(() => {
@@ -85,3 +90,4 @@ for (const dark of [false, true]) {
 }
 
 await browser.close()
+stopWorkbench()

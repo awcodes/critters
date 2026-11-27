@@ -13,7 +13,9 @@ composer serve          # build, then serve the workbench at /admin (test@exampl
 npm run build           # rebuild resources/dist only; then `vendor/bin/testbench filament:assets` to republish
 npm test                # vitest unit tests (jsdom), tests/js
 npm run test:browser    # playwright, tests/browser (serves the workbench on :8765 if not running)
-node tests/browser/perf.measure.js   # manual perf counters + screenshots (needs a running workbench on :8765)
+npx playwright test --project=chromium   # one browser (the suite runs chromium, firefox, webkit)
+node tests/browser/perf.measure.js     # manual perf counters + screenshots (starts the workbench if needed)
+node tests/browser/memory.measure.js   # manual leak + frame-interval check (--headed for a visible browser)
 ```
 
 Gotchas:
@@ -41,7 +43,9 @@ Gotchas:
 - `environments/BaseEnvironment` holds shared invalidation, observers and control geometry; `PanelEnvironment` (ledges) and `AmbientEnvironment` (one region, 2D, no surfaces) extend it. `CrittersRuntime.createEnvironment()` is the only place that branches on `config.environment`.
 - Built-ins (cat + wander, fish + swim) are registered in `critters.js`. `runtime/api.js` is the experimental extension point: `window.Critters.registerCreature/registerBehavior` plus the `window.CrittersRegistrations` queue and `critters:init` event; late registrations mount a waiting panel.
 - Behaviors declare `movingAction` (`walk` or `swim`); never hard-code `'walk'` outside panel-specific code.
-- Built-in placeholder sprites (cat, fish) are inlined into the bundle as data URLs (esbuild `dataurl` loader). Save sprites as **palette** PNGs; RGBA triples the size.
+- Built-in sprites ship as per-creature stylesheets (`resources/css/creatures/*.css` → `resources/dist/creatures/`, sprite inlined at build time) registered by the plugin only for the panel's creature; skins use `className` instead of `src`. Never put a data URL in an inline style: every transform write re-serializes it. Save sprites as **palette** PNGs.
+- `.critters-creature`/`.critters-hit` force `transition: none`: positions are JS-driven, and host-page transition rules must not interpolate them.
+- CI: `ci.yml` (shared PHP workflow) + repo-local `js.yml` (vitest, dist freshness, Playwright in three browsers). `resources/dist` is committed and must match `npm run build`.
 
 ## Workbench
 

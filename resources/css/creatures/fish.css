@@ -1,0 +1,4 @@
+/* Built-in fish sprite, inlined at build time. Loaded only on panels that use the fish. */
+.critters-skin-fish {
+    background-image: url(../../sprites/placeholder-fish.png);
+}

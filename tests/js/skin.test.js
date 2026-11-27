@@ -20,6 +20,13 @@ describe('validateSkin', () => {
         expect(validateSkin(skin)).toContain('Animation "idle" references missing frames: 6, -1.')
     })
 
+    it('needs either an image URL or a stylesheet class', () => {
+        const { src, ...withoutSrc } = testSkin
+
+        expect(validateSkin(withoutSrc)).toContain('Skin needs a "src" image URL or a "className" that provides the image.')
+        expect(validateSkin({ ...withoutSrc, className: 'critters-skin-cat' })).toEqual([])
+    })
+
     it('reports missing dimensions', () => {
         expect(validateSkin({ animations: { idle: { frames: [0] } } })).toContain('Skin is missing "frameWidth".')
     })

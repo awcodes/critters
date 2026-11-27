@@ -107,6 +107,14 @@ CrittersPlugin::make()->creature('tabby');
 
 Missing optional animations fall back (`pet`, `carried`, `sleep` → `idle`; `walk` ⇄ `swim`). Behaviors can be registered with `Critters.registerBehavior(name, Class)`; see `docs/poc-findings.md` (M5) for the current contract. These APIs are experimental and may change.
 
+## Sprite requirements
+
+- One horizontal strip of equal-size frames (`frameWidth × frameHeight`, `frameCount` frames, indexed from 0, left to right), on a transparent background.
+- The creature is bottom-centred in each frame: the frame's bottom edge is where it stands.
+- `facing` declares which way the artwork faces; the other direction is mirrored.
+- Animations list frame indices and a frame rate from 1 to 12 fps. Only `idle` is required.
+- Save PNGs with a palette (indexed colour) where possible; they are a fraction of the size of RGBA.
+
 ## Development
 
 ```bash
@@ -114,12 +122,14 @@ composer serve          # build and serve the workbench at /admin (test@example.
 composer test           # rector, pint, phpstan, pest
 npm run build           # rebuild resources/dist
 npm test                # JS unit tests
-npm run test:browser    # browser tests against the workbench
+npm run test:browser    # browser tests against the workbench (Chromium, Firefox, WebKit)
 ```
 
 ## Known limitations
 
-See [docs/poc-findings.md](docs/poc-findings.md).
+- Proof of concept: the placeholder artwork is temporary, and the JavaScript extension API is experimental.
+- Touch-only devices are off by default until mobile behavior is verified.
+- Surface discovery relies on a few Filament v5 class names; see the decision section in [docs/poc-findings.md](docs/poc-findings.md) for the list and the other open items.
 
 ## License
 

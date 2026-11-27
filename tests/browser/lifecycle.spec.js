@@ -103,3 +103,15 @@ test('the script asset is only evaluated once across SPA navigations', async ({ 
     expect(scripts).toBe(1)
     expect(requests).toEqual([])
 })
+
+test('each panel downloads only the sprite of its own creature', async ({ page }) => {
+    const sheets = (path) =>
+        page.goto(path).then(() =>
+            page.evaluate(() => [...document.querySelectorAll('link[rel="stylesheet"]')].map((l) => l.href).filter((h) => h.includes('critters-creature')).map((h) => h.split('/').pop().split('?')[0])),
+        )
+
+    expect(await sheets('/admin')).toEqual(['critters-creature-cat.css'])
+    expect(await sheets('/aquarium')).toEqual(['critters-creature-fish.css'])
+    expect(await sheets('/custom')).toEqual([])
+    expect(await sheets('/plain')).toEqual([])
+})

@@ -1,5 +1,3 @@
-import src from '../../sprites/placeholder-fish.png'
-
 /**
  * Placeholder fish extracted from concept art for the POC (see docs/poc-findings.md).
  * Strip of 10 frames, 96x96 each, facing right.
@@ -14,7 +12,9 @@ export const placeholderFish = {
         idle: { x: 4, y: 26, width: 48, height: 30 },
     },
     skin: {
-        src,
+        // The sprite ships as its own stylesheet (resources/css/creatures/fish.css), which the
+        // plugin registers only on panels using this creature, keeping it out of critters.js.
+        className: 'critters-skin-fish',
         frameWidth: 96,
         frameHeight: 96,
         frameCount: 10,

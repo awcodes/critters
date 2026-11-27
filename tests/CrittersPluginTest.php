@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Awcodes\Critters\CrittersPlugin;
 use Filament\Facades\Filament;
+use Filament\Panel;
 use Filament\Support\Assets\Css;
 use Filament\Support\Assets\Js;
 use Filament\Support\Facades\FilamentAsset;
@@ -87,7 +88,7 @@ it('registers its script and stylesheet under the awcodes/critters package', fun
             ->getId()->toBe('critters')
             ->isNavigateOnce()->toBeTrue())
         ->and($styles)->not->toBeEmpty()
-        ->each(fn ($style) => $style->toBeInstanceOf(Css::class)->getId()->toBe('critters'));
+        ->each(fn ($style) => $style->toBeInstanceOf(Css::class)->getId()->toBeIn(['critters', 'critters-creature-cat', 'critters-creature-fish']));
 });
 
 it('renders the panel config for authenticated users', function (): void {
@@ -167,4 +168,20 @@ it('hides the pet control when interactions are disabled', function (): void {
 
     expect($items)->not->toHaveKey('critters-pet')
         ->toHaveKey('critters-toggle');
+});
+
+it('registers only the sprite stylesheet of the configured built-in creature', function (): void {
+    // Panel::assets() only stores assets until the panel boots; read what the plugin added.
+    $ids = function (CrittersPlugin $plugin): array {
+        $panel = Panel::make()->id('probe-' . uniqid());
+        $panel->plugin($plugin);
+
+        return collect((fn (): array => $this->assets)->call($panel)[CrittersPlugin::ASSET_PACKAGE])
+            ->map(fn ($asset): string => $asset->getId())
+            ->all();
+    };
+
+    expect($ids(CrittersPlugin::make()))->toBe(['critters', 'critters', 'critters-creature-cat'])
+        ->and($ids(CrittersPlugin::make()->creature('fish')))->toBe(['critters', 'critters', 'critters-creature-fish'])
+        ->and($ids(CrittersPlugin::make()->creature('tabby')))->toBe(['critters', 'critters']);
 });

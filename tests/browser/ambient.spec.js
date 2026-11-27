@@ -19,7 +19,12 @@ const inside = (box, region, tolerance = 1) =>
 
 test('the fish swims in two dimensions and never leaves its tank', async ({ page }) => {
     await visitAquarium(page)
-    await rt(page, () => window.Critters.runtime.creature.behavior.transition('swim', { duration: 60 }))
+    await rt(page, () => {
+        const { behavior } = window.Critters.runtime.creature
+        behavior.transition('swim', { duration: 60 })
+        // The drift is random and can be ~0; set one so vertical movement is observable.
+        behavior.vertical = 0.4
+    })
 
     const positions = []
 

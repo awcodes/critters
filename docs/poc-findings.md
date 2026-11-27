@@ -414,7 +414,140 @@ Sprite contract: see M2. No JSON manifest has been frozen; definitions are plain
 - Ambient regions aren't clipped: a fish in a region partly scrolled off-screen is partly off-screen too, which is correct. The region does not mask the sprite.
 - A custom renderer is still deferred, as the spec asks: only one renderer exists.
 
+## M6: hardening
+
+**Gate result: pass, with a recommendation to proceed (see Decision below).**
+
+### Sprite publishing
+
+- Built-in sprites no longer live in `critters.js`. Each built-in creature has its own stylesheet (`resources/dist/creatures/{cat,fish}.css`, defining `.critters-skin-<name>` with the sprite inlined at build time). The plugin registers it as a Filament `Css` asset **only for the creature the panel uses**. `filament:assets` publishes it like any other stylesheet; no extra install step.
+- Skins accept `className` (stylesheet-provided image) as an alternative to `src` (URL); one of them is required.
+- Verified in the browser: `/admin` loads only `critters-creature-cat.css`, `/aquarium` only the fish stylesheet, and `/custom` and `/plain` neither.
+- **Sizes:** `critters.js` went from 78 KB to **37.5 KB** minified (11.8 KB gzipped). The cat stylesheet is 25.7 KB (19.3 KB gzipped; base64 PNG barely compresses) and the fish 15.5 KB.
+- **Side effect worth recording:** with the sprite as a data URL in the inline `style`, every per-frame transform write re-serialized a 26 KB `style` attribute. Moving it to a class cut walking script time from 244 ms to **123 ms** per 10 s.
+
+### CI (`.github/workflows/js.yml`, repo-local)
+
+- The shared `awcodes/.github` workflow runs only PHP jobs, so a repo-local workflow adds:
+  - **Unit and bundle:** Vitest, then `npm run build` and `git diff --exit-code resources/dist`, so the committed bundle must match its sources.
+  - **Browser:** PHP and Composer, Workbench build, Chromium, Firefox and WebKit, Playwright, with traces uploaded on failure.
+- It uses the fleet's composite actions (`awcodes/.github/actions/setup-php|setup-node|install-dependencies@v1`) and SHA-pinned actions copied from the shared workflow `v1.4.3`.
+- **Not yet run on GitHub** (the repository has no remote). Both jobs' steps were replayed locally from a clean copy of only the tracked files: fresh `composer install` (no lockfile, per fleet convention), `npm ci`, 110 unit tests, the bundle matching a fresh build, Workbench build, and all browser tests passing.
+- **Fleet note:** if Critters graduates from `experimental`, an optional JavaScript job in the shared workflow would be better than this repo-local file.
+
+### Cross-browser
+
+- Firefox and WebKit projects were added to `playwright.config.js`. Results: **127 passed** (42 tests × 3 browsers, plus setup).
+- **Firefox found a real issue:** a page-level `transition: all 0.00001s` under reduced motion (its source wasn't found in Filament's CSS) made Firefox interpolate the creature's JS-driven transform. The hit target then sat somewhere other than where the runtime placed the creature, and clicks missed. **Fix:** `.critters-creature` and `.critters-hit` set `transition: none !important`, so host-page transition rules can never move creatures.
+- Three tests that only passed on Chromium timing were made deterministic:
+  - the fish's random vertical drift is pinned in the test;
+  - a hop is advanced by hand while paused;
+  - short falls are recorded with a `MutationObserver` instead of polled.
+- Late in long three-browser runs, the single-threaded PHP dev server occasionally starved, producing consecutive page-load failures that pass on rerun. Raising `PHP_CLI_SERVER_WORKERS` made things far worse (likely SQLite or session contention in the Workbench), so it was reverted. CI gets `retries: 1`; retried tests are still reported as flaky.
+
+### Memory and frame timing (`tests/browser/memory.measure.js`, headless Chromium)
+
+| Phase | DOM nodes | JS listeners | Heap |
+| --- | --- | --- | --- |
+| Critters panel, start | 1,796 | 248 | 3.33 MB |
+| … after 50 re-attaching SPA navigations | 3,225 | 292 | 4.53 MB |
+| … after 50 more destroy/remount navigations | 3,309 | 289 | 5.05 MB |
+| **Baseline:** plain panel (Critters not loaded), start | 1,405 | 174 | 2.74 MB |
+| … after 50 SPA navigations | 2,537 | 212 | 3.82 MB |
+
+- **No Critters leak.** Growth across SPA navigations happens without Critters loaded (+1,132 nodes, +38 listeners, +1.1 MB). The Critters panel's slightly larger growth is in proportion to its larger page. The destroy/remount phase is flat (+84 nodes, −3 listeners) across 25 full mount and teardown cycles. The growth itself belongs to Livewire and Filament navigation and is outside this package.
+- **Frame intervals** over 600 frames: plain panel, cat walking and fish swimming all show p50 16.7 ms and p99 16.8 ms. Across two runs, at most 1 of 600 frames went over 20 ms (a single 33 ms frame while walking, in the second run).
+
+### Final measurements (headless Chromium, `tests/browser/perf.measure.js`)
+
+| Scenario | Layouts | Style recalcs | Script ms | Task ms |
+| --- | --- | --- | --- | --- |
+| Plain panel, 10 s | 0 | 0 | 0 | 4 |
+| Cat walking, 10 s | 1 | 600 | 123 | 475 |
+| Cat sleeping, 10 s | 1 | 20 | 47 | 178 |
+| Fish swimming, 10 s | 0 | 600 | 105 | 448 |
+| ~5.5 s scrolling, no Critters | 1 | 1 | 0 | 73 |
+| ~5.5 s scrolling, cat riding a shelf | 1 | 113 | 62 | 215 |
+
+So walking costs about 1.2% of the main thread in script and about 4.7% in total task time, sleeping well under 1%, and nothing causes forced layout. Both measurement scripts start the Workbench themselves when it isn't running, and sign in if no session is saved. `memory.measure.js` accepts `--headed` for a manual check in a visible browser window. This POC didn't run it, so it doesn't open windows on the developer's screen unasked.
+
+### Performance notes (summary)
+
+- One `requestAnimationFrame` loop per document. Delta time is clamped at 100 ms, and sprite frames advance at 1–12 fps independently of display rate.
+- Each frame is a read phase (measurement, only when invalidated) followed by a write phase (`transform` and `background-position` only, written only when changed). No forced layouts were observed in any scenario.
+- The loop pauses for hidden tabs, open overlays, user hide and navigation, and is off entirely under reduced motion.
+- The loop keeps ticking while a creature rests. That costs about 4.7 ms per second; a timer-driven idle mode is a possible optimization, but measurements don't call for it yet.
+
+### Accessibility notes (summary)
+
+- Sprites, hearts and the stage are `aria-hidden`; no creature is ever focusable.
+- Keyboard users get *Pet the cat* and *Hide or show critters* in the user menu, and both work wherever the creature is.
+- A visually hidden `role="status"` region announces hiding, showing and petting.
+- Reduced motion turns off autonomous motion (a still, sleeping creature) but keeps pointer and keyboard interactions, without animating them.
+- Creatures never cover controls when resting. Hit targets disable over controls, keyboard focus sends creatures away, and creatures hide behind open dialogs and dropdowns.
+- **Not yet done:** a screen-reader pass (VoiceOver or NVDA) and a manual test with real touch devices.
+
+## Decision: proceed
+
+**Recommendation: proceed to a first release track (a `0.x` or a `1.0` beta), with the items below as entry criteria.** Every spec gate passed in a real Filament v5 workbench across three browser engines, and the core safety principle (the user always stays in control) is enforced by design, tested, and held up when the tests went looking for trouble:
+
+- click-through over controls;
+- focus avoidance;
+- safe settling on fresh geometry only;
+- hiding behind overlays;
+- an always-available keyboard hide.
+
+The integration stays thin and replaceable:
+
+- one asset, one JSON config block, one render hook, and two user-menu actions;
+- a framework-agnostic runtime;
+- one adapter module that names Livewire and Filament.
+
+**What went well**
+
+- DOM-derived lifecycle (body replacement → `sync`) handled SPA navigation, panel exit and back/forward without Livewire internals.
+- Measured surfaces with logical IDs survived scrolling, sidebar collapse, Livewire morphs and removals.
+- Ambient mode and external extensions needed no runtime changes beyond the environment seam.
+
+**What the testing caught** (each fixed and covered by tests):
+
+- an observer torn down too early;
+- dead overlays restored from Livewire's back/forward snapshot;
+- Filament's main-container fade hiding surfaces;
+- safety decisions on stale geometry;
+- the inline-sprite style cost;
+- host-page transitions moving the creature.
+
+That they surfaced at all argues for keeping the real-browser suite as the primary safety net.
+
+**Must resolve before a release**
+
+1. **Production artwork.** The placeholders are concept art cut into sprites: soft, with no `pet` or `carried` frames. Mascot skins (Sparky, Atlas, Barney) wait on approved source artwork and usage scope, as the spec requires.
+2. **Mobile and touch.** Touch-only devices are opted out by default. Verify on real devices before offering `touchDevices()` as supported.
+3. **CI on GitHub.** Push the repository and run `js.yml` and `ci.yml` for real; Linux behaviour has only been inferred.
+4. **Filament coupling review.** The adapter depends on these Filament markup details:
+   - `.fi-section:not(.fi-section-not-contained)` and its header heading;
+   - `.fi-topbar`;
+   - `.fi-modal.fi-modal-open`;
+   - `.fi-dropdown-panel[style*="display: block"]`;
+   - the `x-modal-opened` and `modal-closed` events;
+   - the `.fi-main-ctn` fade.
+
+   None of these is a documented Filament API. Pin a Filament minor-version check, keep the adapter's tests (`tests/js/surfaces.test.js`, browser suite) as the canary, and consider asking Filament for stable hooks.
+5. **Screen-reader pass** of the user-menu controls and announcements.
+
+**Should resolve, but needn't block a beta**
+
+- Freezing the extension API, behavior contract and creature definition after a second external implementation (the `create-critter` skill is the natural second consumer).
+- Hiding only for dropdowns that actually overlap the creature, rather than any open dropdown.
+- The up-to-150 ms window after scrolling during which a resting creature can sit over a fixed or sticky control.
+- A timer-driven idle mode, if real-device profiling shows the resting loop matters.
+
+**Not recommended:** expanding scope before the items above. Pet needs, persistence and multiple creatures stay out of scope, per the spec.
+
 ## Deviations from the spec
 
 - Critters are not rendered on Filament auth pages (login and similar). The spec does not mention them, and a companion before sign-in adds nothing.
-- `Creatures/PlaceholderCat.php` and `Support/CrittersConfig.php` are deferred. Config lives on the plugin until creature registration (M2/M5) shows what PHP actually needs to own.
+- `Creatures/PlaceholderCat.php`, `Contracts/Creature.php` and `Support/CrittersConfig.php` were not created. M5 showed creature definitions belong in JavaScript (that's where they're used and validated); PHP only names the creature, environment, behavior and region, and registers the matching built-in sprite stylesheet.
+- `navigation/SurfaceGraph.js` is placement math (hop targets, support below, safe intervals) rather than a stored graph. With one transition type, computing reachable hops on demand from measured ledges was simpler and always current.
+- Firefox and WebKit were added to the browser suite. The spec asked only for "real-browser tests".

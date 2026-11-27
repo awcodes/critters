@@ -34,6 +34,14 @@
     pointer-events: none;
 }
 
+.critters-creature,
+.critters-hit {
+    /* Positions are driven by JavaScript every frame. Host-page rules such as a global
+       reduced-motion `transition: all 0.00001s` must not interpolate them, or the hit
+       target lags behind where the runtime placed the creature. */
+    transition: none !important;
+}
+
 .critters-hit {
     position: absolute;
     cursor: grab;

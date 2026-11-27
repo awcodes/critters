@@ -25,6 +25,9 @@ class CrittersPlugin implements Plugin
 
     public const array ENVIRONMENTS = ['panel', 'ambient'];
 
+    /** Built-in creatures whose sprite ships as a separate stylesheet. */
+    public const array BUILT_IN_CREATURES = ['cat', 'fish'];
+
     protected bool | Closure $isEnabled = true;
 
     protected bool | Closure $isInteractive = true;
@@ -51,11 +54,18 @@ class CrittersPlugin implements Plugin
 
     public function register(Panel $panel): void
     {
+        $assets = [
+            Css::make('critters', __DIR__ . '/../resources/dist/critters.css'),
+            Js::make('critters', __DIR__ . '/../resources/dist/critters.js')->navigateOnce(),
+        ];
+
+        // Only the sprite this panel actually uses is downloaded.
+        if (in_array($this->creature, self::BUILT_IN_CREATURES, true)) {
+            $assets[] = Css::make("critters-creature-{$this->creature}", __DIR__ . "/../resources/dist/creatures/{$this->creature}.css");
+        }
+
         $panel
-            ->assets([
-                Css::make('critters', __DIR__ . '/../resources/dist/critters.css'),
-                Js::make('critters', __DIR__ . '/../resources/dist/critters.js')->navigateOnce(),
-            ], self::ASSET_PACKAGE)
+            ->assets($assets, self::ASSET_PACKAGE)
             ->renderHook(PanelsRenderHook::BODY_END, fn (): ?Htmlable => $this->renderConfig())
             ->userMenuItems([
                 // Keyboard-accessible controls that work wherever the creature is on screen.

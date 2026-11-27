@@ -14,9 +14,14 @@ export class DomSpriteRenderer {
         Object.assign(this.el.style, {
             width: `${width}px`,
             height: `${height}px`,
-            backgroundImage: `url("${skin.src}")`,
             backgroundSize: `${skin.frameCount * width}px ${height}px`,
         })
+
+        if (skin.className) {
+            this.el.classList.add(skin.className)
+        } else {
+            this.el.style.backgroundImage = `url("${skin.src}")`
+        }
 
         this.hit = doc.createElement('div')
         this.hit.className = 'critters-hit'

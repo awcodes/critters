@@ -22,7 +22,11 @@ export function validateSkin(skin) {
         return ['Skin must be an object.']
     }
 
-    for (const key of ['src', 'frameWidth', 'frameHeight', 'frameCount']) {
+    if (!skin.src && !skin.className) {
+        errors.push('Skin needs a "src" image URL or a "className" that provides the image.')
+    }
+
+    for (const key of ['frameWidth', 'frameHeight', 'frameCount']) {
         if (!skin[key]) {
             errors.push(`Skin is missing "${key}".`)
         }

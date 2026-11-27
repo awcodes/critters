@@ -1,5 +1,3 @@
-import src from '../../sprites/placeholder-cat.png'
-
 /**
  * Placeholder cat extracted from concept art for the POC (see docs/poc-findings.md).
  * Strip of 10 frames, 96x96 each, facing right, feet on the bottom edge.
@@ -17,7 +15,9 @@ export const placeholderCat = {
         sleep: { x: 4, y: 30, width: 56, height: 34 },
     },
     skin: {
-        src,
+        // The sprite ships as its own stylesheet (resources/css/creatures/cat.css), which the
+        // plugin registers only on panels using this creature, keeping it out of critters.js.
+        className: 'critters-skin-cat',
         frameWidth: 96,
         frameHeight: 96,
         frameCount: 10,
