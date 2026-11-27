@@ -88,6 +88,61 @@ The overlay is currently `position: fixed; z-index: 35; pointer-events: none`, w
 4. **Back/forward from the snapshot cache** uses the same swap path, so the same strategy should hold. Add a browser test in M3.
 5. **Final z-index and stacking contexts**: see Layering above.
 
+## M2: basic creature runtime
+
+**Gate result: pass.** The placeholder cat walks, idles and sleeps on the viewport floor (Stage A). Evidence: one animation loop after SPA navigation, delta-time movement independent of refresh rate, and full cleanup on destroy. 39 Vitest unit tests (`tests/js`) and 7 new browser tests (`tests/browser/creature.spec.js`) pass, alongside the 7 M1 lifecycle tests.
+
+### What was built
+
+| Module | Responsibility |
+| --- | --- |
+| `runtime/AnimationScheduler.js` | The single `requestAnimationFrame` loop. Delta in seconds, clamped to 100 ms so a resumed tab doesn't teleport creatures; restart resets the clock; `start()` is idempotent. |
+| `runtime/skin.js` | Skin validation, animation fallbacks (`swim → walk → idle`; `sleep`, `pet`, `carried → idle`), FPS clamped to 1–12, and `FrameClock`, which advances sprite frames at the animation's cadence rather than per display frame. |
+| `behaviors/WanderBehavior.js` | Weighted walk/idle/sleep table with randomized durations and a seedable RNG. Sleep always wakes into idle. Turns when the environment reports `blocked`. No DOM access. |
+| `environments/PanelEnvironment.js` | Stage A viewport floor. Measures `documentElement.clientWidth/Height` only when invalidated (resize, `visualViewport` resize, `sync`), never per frame. Constrains positions after the viewport shrinks. |
+| `renderers/DomSpriteRenderer.js` | One element per creature: background-position window into a horizontal strip, `translate3d` plus `scaleX` for facing. Writes a style only when its value changed and never reads layout. |
+| `runtime/CreatureInstance.js` | Wires behavior intent → environment step → frame clock → renderer. |
+| `runtime/Registry.js` | Creature and behavior registry. Validates skins on registration. Exposed experimentally as `window.Critters.registerCreature/registerBehavior`. |
+| `runtime/CrittersRuntime.js` | Now owns the scheduler, environment, creature and every listener. Pausing is tracked as a set of *reasons* (`hidden`, `navigation`, `user`), so a navigation that ends while the tab is hidden doesn't restart the loop. States: `idle`, `mounted`, `running`, `paused`, `static`. |
+
+- **Reduced motion:** with `prefers-reduced-motion: reduce` no loop runs. The cat is drawn once, sleeping, and is redrawn only on resize. The preference is observed live through `matchMedia` `change`.
+- **Hidden tabs:** `visibilitychange` adds and removes the `hidden` pause reason. The browser test confirms the scheduler tick count stops.
+
+### Placeholder sprite
+
+- Source: the **cat row** of `Pixel Animal and Mascot Animation Sheet.png` (local concept art: 1536×1024, opaque background, frames placed by eye rather than on a grid). It is **illustrative concept art**, not a runtime-ready sheet.
+- Extraction (one-off, outside the repo): key out the card background (RGB 22,17,32, colour-distance threshold 40), keep each frame's main connected component (which drops the `!` alert and `zZz` marks), pack bottom-centred into 96×96 cells, then quantize to 64 colours. Result: `resources/sprites/placeholder-cat.png`, 960×96, 10 frames, true alpha, 19 KB (89 KB before quantizing).
+- Frames: walk 0–3 (8 fps), idle 4–6 (4 fps, mostly sitting with occasional alert and blink frames), sleep 7–9 (2 fps). Facing right, feet on the cell's bottom edge, displayed at 64×64 CSS px.
+- Verified visually on light and dark Filament backgrounds; there is no visible fringing from the keyed background.
+- **The Filament mascot rows (Sparky, Atlas, Barney) were not extracted or used.** The spec requires approved source artwork first.
+- The sprite is inlined into `critters.js` as a data URL (esbuild `dataurl` loader). Filament has no image asset type, and inlining avoids URL resolution entirely for the built-in creature. Bundle: 36.7 KB minified, of which about 26 KB is the sprite. Consumer creatures will reference their own URLs, to be designed in M5.
+
+### Sprite contract as implemented (input for the post-POC skill)
+
+- One horizontal strip; every frame `frameWidth × frameHeight`; `frameCount` frames, indexed from 0, left to right.
+- Transparent background; creature bottom-centred in each cell, so the cell's bottom edge is the floor contact line.
+- `facing: 'right' | 'left'` declares the art's natural direction; the renderer mirrors as needed.
+- `animations: { [name]: { frames: number[], fps: 1–12 } }`. Only `idle` is required; the fallbacks are listed above. Frame lists may repeat indices to shape timing.
+- Display size (`width`/`height`) is set by the creature definition, separately from the source cell size.
+
+### Measurements (headless Chromium 1280×800, 10 s window, `tests/browser/perf.measure.js`)
+
+| Scenario | Layouts | Style recalcs | Style ms | Script ms | Task ms | JS heap |
+| --- | --- | --- | --- | --- | --- | --- |
+| Plain panel (no Critters) | 0 | 0 | 0 | 0 | 1.3 | 3.4 MB |
+| Cat walking | **0** | 600 (one per frame) | 100 | 232 | 541 | 5.9 MB |
+| Cat sleeping | **0** | 20 (2 fps frame changes) | 4 | 33 | 160 | 2.7 MB |
+
+- No forced layouts while animating. Geometry reads happen only on invalidation.
+- Walking costs about 2.3% script and 5.4% total main-thread task time in headless mode. Sleeping costs about 0.3% script.
+- The loop still ticks at display rate while the cat is idle or sleeping, even though nothing moves. If headed production profiling in M6 shows this matters, the scheduler can drop to timer-driven frame changes in non-moving states.
+
+### Risks and notes
+
+- The concept-art cat is slightly soft (it's upscaled "pixel style" art rather than true 1:1 pixel art). It's fine for a placeholder, but production skins should be authored at their true pixel grid.
+- The 64 px display box is larger than the visible cat (the cell has padding above sitting and sleeping poses). M4 hitboxes must follow the visible bounds per action, not the cell.
+- The JS unit and browser suites are not yet in CI: the shared `awcodes/.github` workflow is PHP-only. This has to be resolved before M6.
+
 ## Deviations from the spec
 
 - Critters are not rendered on Filament auth pages (login and similar). The spec does not mention them, and a companion before sign-in adds nothing.

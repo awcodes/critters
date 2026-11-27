@@ -1,1 +1,1 @@
-.critters-overlay{position:fixed;inset:0;pointer-events:none;z-index:35;overflow:hidden}
+.critters-overlay{position:fixed;inset:0;pointer-events:none;z-index:35;overflow:hidden;contain:strict}.critters-creature{position:absolute;top:0;left:0;background-repeat:no-repeat;image-rendering:auto;will-change:transform;user-select:none;pointer-events:none}

@@ -4,12 +4,16 @@
     "scripts": {
         "dev": "node bin/build.js --dev",
         "build": "node bin/build.js",
-        "build:workbench": "tailwindcss --input workbench/resources/css/filament/admin/theme.css --output workbench/public/css/filament/admin/theme.css --minify"
+        "build:workbench": "tailwindcss --input workbench/resources/css/filament/admin/theme.css --output workbench/public/css/filament/admin/theme.css --minify",
+        "test": "vitest run",
+        "test:browser": "playwright test"
     },
     "devDependencies": {
         "@playwright/test": "^1.57.0",
         "@tailwindcss/cli": "^4.3.5",
         "esbuild": "^0.27.0",
-        "tailwindcss": "^4.1.0"
+        "jsdom": "^31.0.1",
+        "tailwindcss": "^4.1.0",
+        "vitest": "^5.1.2"
     }
 }

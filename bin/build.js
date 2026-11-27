@@ -23,6 +23,7 @@ const defaultOptions = {
     sourcemap: isDev ? 'inline' : false,
     sourcesContent: isDev,
     treeShaking: true,
+    loader: { '.png': 'dataurl' },
     target: ['es2022'],
     minify: !isDev,
     plugins: [{

@@ -42,7 +42,8 @@ Critters only render for signed-in users, on panels that register the plugin.
 composer serve          # build and serve the workbench at /admin (test@example.com / password)
 composer test           # rector, pint, phpstan, pest
 npm run build           # rebuild resources/dist
-npx playwright test     # browser tests against the workbench
+npm test                # JS unit tests
+npm run test:browser    # browser tests against the workbench
 ```
 
 ## Known limitations

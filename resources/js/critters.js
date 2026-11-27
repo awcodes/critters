@@ -1,13 +1,21 @@
+import { WanderBehavior } from './behaviors/WanderBehavior.js'
+import { placeholderCat } from './creatures/placeholderCat.js'
+import { connectFilament } from './integration/filament.js'
 import { readConfig } from './runtime/config.js'
 import { CrittersRuntime } from './runtime/CrittersRuntime.js'
 import { watchDocument } from './runtime/DocumentWatcher.js'
-import { connectFilament } from './integration/filament.js'
+import { Registry } from './runtime/Registry.js'
 
 if (!window.Critters) {
-    const runtime = new CrittersRuntime()
+    const registry = new Registry().registerCreature('cat', placeholderCat).registerBehavior('wander', WanderBehavior)
+    const runtime = new CrittersRuntime({ registry })
     const sync = () => runtime.sync(readConfig())
 
-    window.Critters = { runtime }
+    window.Critters = {
+        runtime,
+        registerCreature: (name, definition) => registry.registerCreature(name, definition),
+        registerBehavior: (name, Behavior) => registry.registerBehavior(name, Behavior),
+    }
 
     watchDocument(sync)
     connectFilament(runtime)

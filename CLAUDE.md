@@ -11,7 +11,9 @@ composer test           # rector --dry-run, pint --test, phpstan, pest
 composer build          # npm ci, build resources/dist, rebuild the workbench, theme CSS
 composer serve          # build, then serve the workbench at /admin (test@example.com / password)
 npm run build           # rebuild resources/dist only; then `vendor/bin/testbench filament:assets` to republish
-npx playwright test     # browser tests (serves the workbench on :8765 if not running)
+npm test                # vitest unit tests (jsdom), tests/js
+npm run test:browser    # playwright, tests/browser (serves the workbench on :8765 if not running)
+node tests/browser/perf.measure.js   # manual perf counters + screenshots (needs a running workbench on :8765)
 ```
 
 Gotchas:
@@ -27,6 +29,13 @@ Gotchas:
 - `runtime.destroy()` must release everything the runtime owns. The document watcher is page-lifetime and deliberately not owned by the runtime.
 - Never make interactive elements resting surfaces; the user always stays in control of the UI.
 - No production mascot (Sparky, Atlas, Barney) assets without approved source artwork. Use placeholders.
+
+## Runtime layout (resources/js)
+
+- `runtime/`: `CrittersRuntime` (mount/start/pause/resume/refreshSurfaces/destroy/sync, pause *reasons*), `AnimationScheduler` (the single rAF loop, clamped delta), `CreatureInstance` (behavior + environment + renderer), `skin.js` (validation, animation fallbacks, `FrameClock`), `Registry`, `random.js` (seedable), `DocumentWatcher`, `config.js`.
+- `behaviors/` pick intents and never touch the DOM. `environments/` own geometry and measure only when invalidated. `renderers/` write styles only and never read layout.
+- Built-ins are registered in `critters.js`; `window.Critters.registerCreature/registerBehavior` is the experimental extension point.
+- The placeholder cat sprite is inlined into the bundle as a data URL (esbuild `dataurl` loader).
 
 ## Workbench
 
