@@ -241,6 +241,69 @@ M2 figures (walking and sleeping on the floor) are unchanged within noise. Surfa
 - **For M4:** dropdowns (`z-20`) and modals (`z-40` and up) are not occluders yet. The overlay sits at `z-35`, so it can draw over an open dropdown. M4 handles open overlays explicitly.
 - `contain: strict` on the overlay and per-frame `transform` writes keep style recalcs cheap. Recalc counts track frames, not DOM size.
 
+## M4: core interactions and safety
+
+**Gate result: pass.** In the real workbench the cat can be petted (by pointer or keyboard), dragged and dropped onto a safe ledge where it stays put. Interrupted drags always recover. A cat crossing a control never blocks it, and a keyboard-focused control sends the cat away. Critters hide while Filament dropdowns and modals are open and can be hidden at any time from the user menu. Evidence: 94 Vitest tests, 13 new browser tests (`tests/browser/interactions.spec.js`, 35 browser tests in total), all stable across 3 repeat runs, and 15 Pest tests.
+
+### Interaction model (`interactions/InteractionController.js`)
+
+- **States:** `idle → pressed → (carried | reacting) → settling → idle`, independent of the behavior. The creature itself has modes `auto`, `carried` and `reacting`, so behavior is suspended while a person is in control.
+- **Hit target:** a child element of the creature that receives pointer events. It is sized to the **visible footprint per pose** (`hitboxes` in the creature definition, measured from the sprite: walk 56×45, sitting 46×48, sleeping 56×34 display px) and mirrored with the sprite. The overlay and stage stay `pointer-events: none`. There is never a page-wide capture surface.
+- **Pet:** a press released within 6 px. Plays `pet` (falling back to `idle` for the placeholder) plus a floating heart, holds still for 1.2 s, then returns to behavior. It also posts the status message "You petted the cat."
+- **Drag:** more than 6 px of movement after a press. Uses `setPointerCapture`; the creature follows the pointer keeping its grab offset, clamped to the viewport. No long press is needed with a mouse. A completed drag never triggers a pet.
+- **Drop:** falls to the nearest ledge below the release point (the floor at worst), then stays for a random 10–20 s (`stay`) resting. Safety still applies during the stay: if the landing spot is in front of a control, the cat walks aside first (seen in the browser when dropped under the action buttons).
+- **Cancellation:** a carried creature is dropped safely on any of `pointercancel`, `lostpointercapture`, Livewire navigation (adapter: `livewire:navigating` → `cancelInteractions`), a hidden tab, an opening overlay, user hide, disable, or runtime teardown. Capture is always released. Per the Pointer Events spec, `lostpointercapture` arrives with the *next* pointer event; real input always provides one.
+- **Native side effects:** `pointerdown` is `preventDefault`ed (no text selection or focus theft), `dragstart` is cancelled, and the click that follows a press is swallowed at the hit target, so it never reaches the page. `touch-action: none` applies to the hit target only, never the panel.
+- **Attention:** `pointerenter` on the hit target makes a walking cat pause for 1.5 s. Sleeping cats ignore it.
+
+### Safety
+
+- **Never blocking controls:** the hit target is disabled whenever the creature's footprint overlaps a visible interactive element. This is checked at most every 100 ms, with fresh geometry only. Verified: with the cat drawn over the Save button, a real click submits the form.
+- **Keyboard focus:** a `focusin` on an element under the creature sends it walking away from that element for 2.5 s (verified with the Save button).
+- **Open overlays:** creatures fade out, pause, and drop anything carried while any of these exist:
+  - `dialog[open]` (generic);
+  - from the Filament adapter: `.fi-modal.fi-modal-open` (modals and slide-overs) and `.fi-dropdown-panel[style*="display: block"]` (dropdowns; this is the open test `support/resources/js/components/dropdown.js` uses).
+
+  Filament's `x-modal-opened` and `modal-closed` events trigger an immediate check; a 200 ms poll is the safety net. This sidesteps the `z-35` versus dropdown `z-20` layering problem noted in M1 entirely.
+- **Hide control:** user menu → "Hide or show critters" (an `Action` with `alpineClickHandler`, so there is no Livewire round trip). It is keyboard-operable (verified by focus plus Enter), works wherever the creature is, persists per panel in `localStorage` (`critters:<panel>:hidden`) and is announced. Hidden creatures are `display: none`, so fully click-through.
+- **Keyboard petting:** user menu → "Pet the cat". If the menu is still closing (the dropdown counts as an obstruction), the pet is queued and plays as soon as it closes.
+- **`interactive(false)`:** the hit target stays `pointer-events: none` and the pet menu item is hidden. Verified on the `classic` panel with `elementFromPoint`.
+- **Touch-only devices** (`(hover: none) and (pointer: coarse)`): not mounted unless `touchDevices()` is enabled. Verified with a Playwright mobile context. This is the spec's conservative default; real touch testing is still to do.
+
+### Accessibility
+
+- The overlay is now `overlay > stage[aria-hidden=true] + status[role=status]`. Sprites and hearts are hidden from assistive technology; the visually hidden status region announces hide, show and pet. No sprite is ever in the tab order. The keyboard path is the user menu.
+- **Reduced motion:** no loop runs, and pointer and keyboard interactions still work. Petting shows the pet frame and a non-moving heart for 1.2 s; drag and drop place the creature directly onto its ledge (verified with no frames scheduled).
+
+### PHP API additions
+
+`CrittersPlugin::make()->interactive(bool|Closure)` and `->touchDevices(bool)`, serialized as `interactive` and `touch` in the config block. The plugin registers the user-menu items `critters-pet` and `critters-toggle`; their visibility follows `enabled()` and `interactive()`.
+
+### Bugs found by M4 testing
+
+1. **Filament fades the main container in.** `.fi-main-ctn` starts at `opacity-0 transition-all` (`filament/resources/css/components/layout.css`) when the desktop sidebar is collapsible. Surfaces measured in the first ~300 ms are correctly "hidden", but an opacity transition triggers no observer, so they could stay hidden until something else invalidated. **Fix:** the environment also re-measures on `transitionend` and `animationend` (ignoring its own), on window `load`, and on `document.fonts.ready`. That also covers layout that slides without resizing.
+2. **Safety decisions on stale geometry (present since M3).** During scrolling, cached control positions (reused for 150 ms while invalidations keep arriving) were compared against freshly measured ledges. A resting cat therefore saw controls in the wrong place and flapped between walking and resting about 10 times in 5 s. Each flip resized the hit target and forced a layout. **Fix:** safety decisions and hit-target checks run only on fresh control geometry; otherwise the creature keeps doing what it was doing. After the fix, scroll-scenario style recalcs dropped from 418 to 113 and script time from 200 ms to 77 ms. The M3 scroll figures included this bug.
+
+The per-frame update is also now split into a **read phase** (environment measurement, hit-target check) followed by a **write phase** (behavior, movement, styles).
+
+### Measurements (headless Chromium, `tests/browser/perf.measure.js`)
+
+| Scenario | Layouts | Style recalcs | Script ms | Task ms |
+| --- | --- | --- | --- | --- |
+| Cat walking on the floor, 10 s | 1 | 600 | 258 | 579 |
+| Cat sleeping on the floor, 10 s | 1 | 20 | 51 | 181 |
+| Surfaces page, ~5.5 s wheel scrolling, no Critters | 1 | 1 | 0 | 74 |
+| Same, sleeping cat riding a shelf | 1 | 113 | 77 | 230 |
+
+The single layout in each row is the measurement window catching the page's own initial layout, not a per-frame cost.
+
+### Limitations and notes
+
+- Slide-overs share `.fi-modal-open` with modals and so are covered by the same selector, but the workbench has no slide-over test yet.
+- The overlay hides for *any* open dropdown, including the user menu, rather than only dropdowns overlapping the creature. That's simple and safe; it could be refined with geometry later.
+- Interactive-element geometry used for safety lags by up to 150 ms after scrolling stops. During that window a resting creature may briefly sit over a control, with its hit target state frozen. This is the trade-off for not flapping.
+- The placeholder has no `pet` or `carried` frames, so both fall back to sitting. The heart is the lightweight response the spec allows.
+
 ## Deviations from the spec
 
 - Critters are not rendered on Filament auth pages (login and similar). The spec does not mention them, and a companion before sign-in adds nothing.

@@ -31,10 +31,19 @@ CrittersPlugin::make()
     ->creature('cat')
     ->environment('panel')   // or 'ambient'
     ->behavior('wander')
-    ->enabled(fn (): bool => auth()->user()?->likes_cats ?? true);
+    ->enabled(fn (): bool => auth()->user()?->likes_cats ?? true)
+    ->interactive()          // pet and drag; false makes creatures fully click-through
+    ->touchDevices(false);   // touch-only devices are opted out by default
 ```
 
 Critters only render for signed-in users, on panels that register the plugin.
+
+## Interacting
+
+- **Click** a creature to pet it. **Drag** it to move it: it drops onto the nearest surface below and stays there for a while.
+- The **user menu** has *Pet the cat* and *Hide or show critters*, both keyboard-accessible. Hiding is remembered per panel in this browser.
+- Creatures never block the interface. They can't be clicked while passing over a control, they move away when a control they cover gets keyboard focus, and they hide while dropdowns and modals are open.
+- With reduced motion enabled, creatures stay still but can still be petted and moved.
 
 ## Surfaces
 

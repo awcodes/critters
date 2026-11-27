@@ -7,6 +7,8 @@ const describe = (page) => page.evaluate(() => window.Critters.runtime.environme
 async function visit(page) {
     await page.goto('/admin/surfaces')
     await expect(cat(page)).toHaveCount(1)
+    // Filament fades the main container in; surfaces are invisible until it settles.
+    await expect.poll(async () => (await describe(page)).ledges.map((l) => l.id)).toContain('upper-shelf')
 }
 
 /** Puts the cat on a ledge and keeps it there (asleep) so the test controls movement. */
@@ -191,7 +193,7 @@ test('back and forward navigation keep a single runtime', async ({ page }) => {
     await page.waitForURL(/\/admin$/)
     await page.goForward()
     await page.waitForURL('**/admin/surfaces')
-    await expect.poll(async () => (await describe(page)).ledges.length).toBe(4)
+    await expect.poll(async () => (await describe(page)).ledges.map((l) => l.id)).toContain('upper-shelf')
 
     const state = await page.evaluate(() => ({
         overlays: document.querySelectorAll('[data-critters-overlay]').length,

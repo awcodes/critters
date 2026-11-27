@@ -222,6 +222,25 @@ describe('PanelEnvironment', () => {
             expect(environment.step(placement, idle, 50, 1 / 60, size).action).toBe('walk')
         })
 
+        it('keeps resting instead of acting on stale control geometry', () => {
+            const { environment, button, clock } = withButtonAboveFloor()
+            const resting = onFloor(environment, 200)
+
+            expect(environment.step(resting, idle, 50, 1 / 60, size).action).toBe('idle')
+
+            // Mid-scroll: the button now sits under the creature, but our data is stale.
+            setRect(button, { left: 190, top: 270, width: 40, height: 20 })
+            clock.t = 10
+            environment.invalidate()
+            clock.t = 50
+
+            expect(environment.step(resting, idle, 50, 1 / 60, size).action).toBe('idle')
+
+            clock.t = 300
+
+            expect(environment.step(resting, idle, 50, 1 / 60, size).action).toBe('walk')
+        })
+
         it('reuses unsafe measurements while invalidations keep arriving', () => {
             const { environment, button, clock } = withButtonAboveFloor()
 
@@ -264,6 +283,23 @@ describe('PanelEnvironment', () => {
 
             expect(environment.dirty).toBe(false)
             expect(environment.needsDiscovery).toBe(false)
+        })
+
+        it('re-measures when a CSS transition or animation ends, except its own', () => {
+            const overlay = element('<div data-critters-overlay="admin"><div class="critters-heart"></div></div>')
+            const main = element('<div class="fi-main-ctn"></div>')
+            const { environment } = env()
+
+            environment.connect()
+            environment.measure(size)
+            overlay.firstElementChild.dispatchEvent(new Event('animationend', { bubbles: true }))
+
+            expect(environment.dirty).toBe(false)
+
+            main.dispatchEvent(new Event('transitionend', { bubbles: true }))
+
+            expect(environment.dirty).toBe(true)
+            environment.destroy()
         })
 
         it('ignores mutations inside the critters overlay', async () => {

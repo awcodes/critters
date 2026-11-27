@@ -47,6 +47,25 @@ export class PanelEnvironment {
         this.win.addEventListener('scroll', onScroll, scrollOptions)
         this.cleanups.push(() => this.win.removeEventListener('scroll', onScroll, scrollOptions))
 
+        // Layout can settle without resizing anything we observe: Filament fades the main
+        // container in from `opacity: 0`, and sidebar collapse slides content over. A finished
+        // CSS transition or animation (other than our own) is a cheap signal to re-measure.
+        const onSettled = (event) => {
+            if (!event.target.closest?.('[data-critters-overlay]')) this.invalidate()
+        }
+
+        for (const type of ['transitionend', 'animationend']) {
+            this.doc.addEventListener(type, onSettled, scrollOptions)
+            this.cleanups.push(() => this.doc.removeEventListener(type, onSettled, scrollOptions))
+        }
+
+        if (this.doc.readyState !== 'complete') {
+            this.win.addEventListener('load', onScroll, { once: true })
+            this.cleanups.push(() => this.win.removeEventListener('load', onScroll))
+        }
+
+        this.doc.fonts?.ready.then(() => this.cleanups.length && this.invalidate())
+
         if (this.win.ResizeObserver) {
             this.resizeObserver = new this.win.ResizeObserver(() => this.invalidate())
             this.resizeObserver.observe(this.doc.documentElement)
@@ -141,6 +160,13 @@ export class PanelEnvironment {
         return this.unsafe
     }
 
+    /** Refreshes interactive-element geometry if it's due; true when it is current. */
+    hasFreshUnsafe() {
+        this.unsafeRegions()
+
+        return !this.unsafeStale
+    }
+
     place(size, random) {
         this.ensureMeasured(size)
 
@@ -222,7 +248,10 @@ export class PanelEnvironment {
         let action = intent.action
         let direction = intent.direction
 
-        if (RESTING.has(action)) {
+        // Safety decisions use fresh geometry only. While invalidations keep arriving
+        // (scrolling) the cached control positions are stale relative to the ledge, and
+        // acting on them makes a resting creature flap between walking and resting.
+        if (RESTING.has(action) && this.hasFreshUnsafe()) {
             const target = nearestSafeX(safeIntervals(ledge, this.unsafeRegions(), size), x)
 
             if (target === null) {

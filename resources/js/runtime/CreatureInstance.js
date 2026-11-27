@@ -12,6 +12,9 @@ export class CreatureInstance {
         this.placement = environment.place(this.size, random)
         this.intent = behavior.start()
         this.action = this.intent.action
+        /** 'auto' (behavior drives), 'carried' (pointer drives) or 'reacting' (playing a reaction). */
+        this.mode = 'auto'
+        this.reaction = null
     }
 
     get position() {
@@ -19,6 +22,20 @@ export class CreatureInstance {
     }
 
     update(delta) {
+        if (this.mode === 'carried') {
+            return this.draw(delta)
+        }
+
+        if (this.mode === 'reacting') {
+            this.reaction.remaining -= delta
+
+            if (this.reaction.remaining > 0) {
+                return this.draw(delta)
+            }
+
+            this.endReaction()
+        }
+
         this.intent = this.behavior.update(delta)
 
         if (this.intent.action === 'walk') {
@@ -66,6 +83,59 @@ export class CreatureInstance {
         this.placement = this.environment.startHop(this.placement, option, this.size)
 
         return true
+    }
+
+    /** Plays a reaction (e.g. `pet`) in place, suspending autonomous behavior. */
+    react(action, duration) {
+        if (this.mode === 'carried') return
+
+        this.mode = 'reacting'
+        this.reaction = { action, remaining: duration }
+        this.action = action
+    }
+
+    endReaction() {
+        this.mode = 'auto'
+        this.reaction = null
+        this.intent = this.behavior.transition('idle')
+    }
+
+    pickUp() {
+        this.mode = 'carried'
+        this.reaction = null
+        this.placement = { ...this.placement, hop: null }
+        this.action = 'carried'
+    }
+
+    /** Follows the pointer while carried. Coordinates are the creature's top-left corner. */
+    carryTo(x, y) {
+        const viewport = this.environment.viewport ?? { width: Infinity, height: Infinity }
+
+        this.placement = {
+            ...this.placement,
+            x: Math.min(Math.max(x, 0), viewport.width - this.size.width),
+            y: Math.min(Math.max(y, 0), viewport.height - this.size.height),
+        }
+    }
+
+    /** Releases a carried creature: it drops onto the nearest ledge below, then stays put a while. */
+    drop(stay) {
+        this.mode = 'auto'
+        this.placement = this.environment.fall(this.placement, this.size)
+        this.action = 'fall'
+        this.intent = this.behavior.transition(this.random.next() < 0.7 ? 'idle' : 'sleep', { duration: stay })
+    }
+
+    /** Hurries off a control that just received keyboard focus. */
+    moveAway(rect) {
+        if (this.mode !== 'auto') return
+
+        const center = this.placement.x + this.size.width / 2
+        const direction = center < (rect.left + rect.right) / 2 ? -1 : 1
+
+        this.intent = this.behavior.transition('walk', { duration: 2.5 })
+        this.behavior.direction = direction
+        this.intent = this.behavior.intent
     }
 
     /** Shows one still frame of an action without autonomous movement (reduced motion). */

@@ -34,6 +34,9 @@ Gotchas:
 
 - `runtime/`: `CrittersRuntime` (mount/start/pause/resume/refreshSurfaces/destroy/sync, pause *reasons*), `AnimationScheduler` (the single rAF loop, clamped delta), `CreatureInstance` (behavior + environment + renderer), `skin.js` (validation, animation fallbacks, `FrameClock`), `Registry`, `random.js` (seedable), `DocumentWatcher`, `config.js`.
 - `navigation/`: `SurfaceDiscovery` (markers → adapter selectors → rejection rules → viewport-space ledges, occluders, unsafe rects) and `SurfaceGraph` (hop targets, support below, safe intervals). Placements are `{ surfaceId, offset, x, y, hop }`; `offset` is relative to the ledge's left edge so creatures ride moving ledges.
+- `interactions/InteractionController`: pointer states (idle/pressed/carried/reacting/settling) on the creature's hit target only; cancellation always drops a carried creature safely. The runtime owns user hide (localStorage per panel), overlay obstruction (generic `dialog[open]` + adapter selectors, 200 ms poll + adapter events), focus avoidance, the touch-only opt-out and the `role=status` announcer.
+- Frame order is **read then write**: `environment.ensureMeasured` and `interactions.measure` first, then `creature.update` and `interactions.update`. Keep geometry reads out of the write phase.
+- Safety decisions (walk aside, hit-target enable) only use fresh control geometry (`environment.hasFreshUnsafe()`); never act on stale rects.
 - `behaviors/` pick intents and never touch the DOM. `environments/` own geometry and measure only when invalidated. `renderers/` write styles only and never read layout.
 - Built-ins are registered in `critters.js`; `window.Critters.registerCreature/registerBehavior` is the experimental extension point.
 - The placeholder cat sprite is inlined into the bundle as a data URL (esbuild `dataurl` loader).
@@ -42,4 +45,6 @@ Gotchas:
 
 Three panels: `admin` (SPA + Critters, collapsible sidebar), `classic` (no SPA + Critters), `plain` (SPA, no Critters), used to test the full-load, SPA, and panel-exit lifecycles. `/admin/surfaces` is the surface-navigation fixture (markers, adapter section, rejected marked button, removable shelf, Livewire form).
 
-Browser-test tip: pause the runtime (`runtime.pause('test')`) before forcing a placement, and assert on `creature.position` rather than the DOM until it resumes, because the renderer draws on the next frame.
+Browser-test tips: `/admin` fades `.fi-main-ctn` in, so wait for `opacity: 1` (or for the expected ledges) before measuring. Use `.critters-status`, not `getByRole('status')`, because Filament notifications also have `role=status`.
+
+Also: pause the runtime (`runtime.pause('test')`) before forcing a placement, and assert on `creature.position` rather than the DOM until it resumes, because the renderer draws on the next frame.

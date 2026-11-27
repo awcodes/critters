@@ -130,7 +130,7 @@ describe('CrittersRuntime', () => {
 
         expect(removed.mock.calls.map((c) => c[1])).toEqual(expect.arrayContaining(added.mock.calls.map((c) => c[1])))
         expect(docRemoved.mock.calls.map((c) => c[1])).toEqual(expect.arrayContaining(docAdded.mock.calls.map((c) => c[1])))
-        expect(window.matchMedia().listeners.size).toBe(0)
+        expect(window.matchMedia('(prefers-reduced-motion: reduce)').listeners.size).toBe(0)
         expect(frames.pending).toBe(0)
         expect(runtime.scheduler.callbacks.size).toBe(0)
         expect(document.querySelector('[data-critters-overlay]')).toBeNull()

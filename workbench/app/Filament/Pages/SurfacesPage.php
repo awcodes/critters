@@ -80,6 +80,12 @@ class SurfacesPage extends Page
                     Action::make('toggleRemovableShelf')
                         ->label('Toggle removable shelf')
                         ->action(fn (): bool => $this->showRemovableShelf = ! $this->showRemovableShelf),
+                    Action::make('openModal')
+                        ->label('Open modal')
+                        ->color('gray')
+                        ->modalHeading('A modal')
+                        ->modalDescription('Critters hide while this is open.')
+                        ->modalSubmitAction(false),
                     Action::make('markedButton')
                         ->label('Marked button')
                         ->color('gray')

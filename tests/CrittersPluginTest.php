@@ -30,6 +30,8 @@ it('has sensible defaults', function (): void {
         'creature' => 'cat',
         'environment' => 'panel',
         'behavior' => 'wander',
+        'interactive' => true,
+        'touch' => false,
     ]);
 });
 
@@ -99,6 +101,8 @@ it('renders the panel config for authenticated users', function (): void {
         'creature' => 'cat',
         'environment' => 'panel',
         'behavior' => 'wander',
+        'interactive' => true,
+        'touch' => false,
     ]);
 });
 
@@ -129,4 +133,34 @@ it('escapes config values so they cannot break out of the script tag', function 
 
     expect($html)->not->toContain('<script>alert(1)')
         ->and(substr_count($html, '</script>'))->toBe(1);
+});
+
+it('serializes interactivity and touch settings', function (): void {
+    Filament::setCurrentPanel('admin');
+
+    expect(CrittersPlugin::make()->interactive(fn (): bool => false)->touchDevices()->getConfig())
+        ->toMatchArray(['interactive' => false, 'touch' => true]);
+});
+
+it('adds keyboard-accessible pet and hide controls to the user menu', function (): void {
+    $this->actingAs(User::factory()->create());
+    Filament::setCurrentPanel('admin');
+
+    $items = Filament::getCurrentPanel()->getUserMenuItems();
+
+    expect($items)->toHaveKeys(['critters-pet', 'critters-toggle'])
+        ->and($items['critters-pet']->getAlpineClickHandler())->toBe('window.Critters?.pet()')
+        ->and($items['critters-toggle']->getAlpineClickHandler())->toBe('window.Critters?.toggleHidden()')
+        ->and($items['critters-pet']->isVisible())->toBeTrue();
+});
+
+it('hides the pet control when interactions are disabled', function (): void {
+    $this->actingAs(User::factory()->create());
+    Filament::setCurrentPanel('admin');
+    Filament::getCurrentPanel()->getPlugin('critters')->interactive(false);
+
+    $items = Filament::getCurrentPanel()->getUserMenuItems();
+
+    expect($items)->not->toHaveKey('critters-pet')
+        ->toHaveKey('critters-toggle');
 });

@@ -73,7 +73,9 @@ export function setReducedMotion(matches) {
         },
     }
 
-    window.matchMedia = () => query
+    const other = { matches: false, addEventListener() {}, removeEventListener() {} }
+
+    window.matchMedia = (media) => (media.includes('reduced-motion') ? query : other)
 
     return query
 }
@@ -98,4 +100,25 @@ export const fixedClock = () => {
     const clock = { t: 0, now: () => clock.t }
 
     return clock
+}
+
+/** Dispatches a pointer event (jsdom has no PointerEvent constructor). */
+export function pointer(el, type, { x = 0, y = 0, id = 1, button = 0 } = {}) {
+    const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button })
+
+    Object.defineProperty(event, 'pointerId', { value: id })
+    el.dispatchEvent(event)
+
+    return event
+}
+
+/** jsdom lacks pointer capture; track it so capture release can be asserted. */
+export function stubPointerCapture(el) {
+    const captured = new Set()
+
+    el.setPointerCapture = (id) => captured.add(id)
+    el.hasPointerCapture = (id) => captured.has(id)
+    el.releasePointerCapture = (id) => captured.delete(id)
+
+    return captured
 }

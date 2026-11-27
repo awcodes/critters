@@ -32,7 +32,8 @@ class ClassicPanelProvider extends PanelProvider
             ->path('classic')
             ->login(Login::class)
             ->plugins([
-                CrittersPlugin::make(),
+                CrittersPlugin::make()
+                    ->interactive(false),
             ])
             ->theme(Theme::make('workbench')->html(
                 fn (): string => route('workbench.theme'),

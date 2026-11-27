@@ -5,10 +5,17 @@ import src from '../../sprites/placeholder-cat.png'
  * Strip of 10 frames, 96x96 each, facing right, feet on the bottom edge.
  */
 export const placeholderCat = {
+    label: 'cat',
     width: 64,
     height: 64,
     speed: 36,
     behavior: 'wander',
+    // Visible footprint per pose (display px), measured from the sprite strip.
+    hitboxes: {
+        walk: { x: 4, y: 19, width: 56, height: 45 },
+        idle: { x: 9, y: 16, width: 46, height: 48 },
+        sleep: { x: 4, y: 30, width: 56, height: 34 },
+    },
     skin: {
         src,
         frameWidth: 96,
