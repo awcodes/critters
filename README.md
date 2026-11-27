@@ -56,6 +56,57 @@ Creatures walk along the bottom of the viewport and hop onto contained Filament 
 
 Interactive elements (buttons, links, form controls, focusable elements, dialogs, menus) are never used as ledges, even when marked, and creatures walk aside rather than resting in front of them.
 
+## Ambient mode
+
+An ambient creature moves freely inside one region, for example a fish in an aquarium widget:
+
+```php
+CrittersPlugin::make()
+    ->creature('fish')
+    ->environment('ambient')
+    ->behavior('swim')
+    ->region('[data-critters-region="tank"]');   // optional; defaults to the first [data-critters-region], else the viewport
+```
+
+```html
+<div data-critters-region="tank" style="height: 320px"></div>
+```
+
+## Custom creatures and behaviors (experimental)
+
+Register your own creatures from your application's JavaScript. Load the file as a normal Filament asset; it can load before or after Critters:
+
+```js
+(window.CrittersRegistrations ||= []).push((Critters) => {
+    Critters.registerCreature('tabby', {
+        width: 64,
+        height: 64,
+        speed: 40,
+        behavior: 'wander',
+        skin: {
+            src: '/images/critters/tabby.png',   // a horizontal strip of equal frames, transparent background
+            frameWidth: 96,
+            frameHeight: 96,
+            frameCount: 10,
+            facing: 'right',
+            animations: {
+                idle: { frames: [4, 5, 6], fps: 4 },    // required
+                walk: { frames: [0, 1, 2, 3], fps: 8 },
+                sleep: { frames: [7, 8, 9], fps: 2 },
+            },
+        },
+    })
+})
+```
+
+```php
+$panel->assets([Js::make('my-critters', resource_path('js/my-critters.js'))]);
+
+CrittersPlugin::make()->creature('tabby');
+```
+
+Missing optional animations fall back (`pet`, `carried`, `sleep` → `idle`; `walk` ⇄ `swim`). Behaviors can be registered with `Critters.registerBehavior(name, Class)`; see `docs/poc-findings.md` (M5) for the current contract. These APIs are experimental and may change.
+
 ## Development
 
 ```bash

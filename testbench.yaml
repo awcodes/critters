@@ -5,6 +5,8 @@ providers:
   - Workbench\App\Providers\Filament\AdminPanelProvider
   - Workbench\App\Providers\Filament\ClassicPanelProvider
   - Workbench\App\Providers\Filament\PlainPanelProvider
+  - Workbench\App\Providers\Filament\AquariumPanelProvider
+  - Workbench\App\Providers\Filament\CustomPanelProvider
 
 seeders:
   - Workbench\Database\Seeders\DatabaseSeeder

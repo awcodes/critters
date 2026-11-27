@@ -15,10 +15,22 @@ const frame = async (page) => Number(await creature(page).getAttribute('data-cri
 
 test('one cat stands on the viewport floor', async ({ page }) => {
     await visit(page)
+    // Since M3 the cat may hop onto sections; pause it on the floor before measuring.
+    await runtime(page, () => {
+        const { runtime } = window.Critters
+        const { creature } = runtime
+        const env = creature.environment
+
+        runtime.pause('test')
+        env.ensureMeasured(creature.size)
+        creature.placement = env.anchor({ surfaceId: 'floor', offset: 300, hop: null }, env.ledge('floor'), creature.size)
+        creature.render(1)
+    })
 
     const box = await creature(page).boundingBox()
     const viewport = page.viewportSize()
 
+    await expect(creature(page)).toHaveAttribute('data-critters-surface-id', 'floor')
     expect(box.width).toBe(64)
     expect(box.x).toBeGreaterThanOrEqual(0)
     expect(box.x + box.width).toBeLessThanOrEqual(viewport.width)

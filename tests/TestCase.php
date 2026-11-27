@@ -21,7 +21,9 @@ use Orchestra\Testbench\Concerns\WithWorkbench;
 use Orchestra\Testbench\TestCase as Orchestra;
 use RyanChandler\BladeCaptureDirective\BladeCaptureDirectiveServiceProvider;
 use Workbench\App\Providers\Filament\AdminPanelProvider;
+use Workbench\App\Providers\Filament\AquariumPanelProvider;
 use Workbench\App\Providers\Filament\ClassicPanelProvider;
+use Workbench\App\Providers\Filament\CustomPanelProvider;
 use Workbench\App\Providers\Filament\PlainPanelProvider;
 
 class TestCase extends Orchestra
@@ -60,6 +62,8 @@ class TestCase extends Orchestra
             AdminPanelProvider::class,
             ClassicPanelProvider::class,
             PlainPanelProvider::class,
+            AquariumPanelProvider::class,
+            CustomPanelProvider::class,
         ];
     }
 }

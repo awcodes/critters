@@ -14,6 +14,8 @@ export class WanderBehavior {
 
     static hopWhenBlocked = 0.6
 
+    movingAction = 'walk'
+
     constructor({ random, actions = WanderBehavior.actions } = {}) {
         this.random = random
         this.actions = actions

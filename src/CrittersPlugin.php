@@ -37,6 +37,8 @@ class CrittersPlugin implements Plugin
 
     protected string $behavior = 'wander';
 
+    protected ?string $region = null;
+
     public static function make(): static
     {
         return app(static::class);
@@ -128,6 +130,17 @@ class CrittersPlugin implements Plugin
         return $this;
     }
 
+    /**
+     * The CSS selector of the element an ambient creature lives in. Without one, ambient
+     * creatures use the first `[data-critters-region]` element, else the viewport.
+     */
+    public function region(?string $selector): static
+    {
+        $this->region = $selector;
+
+        return $this;
+    }
+
     public function isEnabled(): bool
     {
         return (bool) $this->evaluate($this->isEnabled);
@@ -139,7 +152,7 @@ class CrittersPlugin implements Plugin
     }
 
     /**
-     * @return array{panel: string, creature: string, environment: string, behavior: string, interactive: bool, touch: bool}
+     * @return array{panel: string, creature: string, environment: string, behavior: string, region: ?string, interactive: bool, touch: bool}
      */
     public function getConfig(): array
     {
@@ -148,6 +161,7 @@ class CrittersPlugin implements Plugin
             'creature' => $this->creature,
             'environment' => $this->environment,
             'behavior' => $this->behavior,
+            'region' => $this->region,
             'interactive' => $this->isInteractive(),
             'touch' => $this->hasTouchDevices,
         ];

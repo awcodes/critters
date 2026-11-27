@@ -69,7 +69,12 @@ export class DomSpriteRenderer {
         return heart
     }
 
-    render({ position, direction, frame, action, surface = null }) {
+    render({ position, direction, frame, action, surface = null, hidden = false }) {
+        if (hidden !== this.last.hidden) {
+            this.el.style.visibility = hidden ? 'hidden' : ''
+            this.last.hidden = hidden
+        }
+
         const facing = this.definition.skin.facing === 'left' ? -direction : direction
         const transform = `translate3d(${position.x.toFixed(1)}px, ${position.y.toFixed(1)}px, 0) scaleX(${facing})`
 

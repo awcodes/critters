@@ -32,7 +32,7 @@ async function measure(path, action) {
     }
 }
 
-console.table([await measure('/plain', null), await measure('/admin', 'walk'), await measure('/admin', 'sleep')])
+console.table([await measure('/plain', null), await measure('/admin', 'walk'), await measure('/admin', 'sleep'), await measure('/aquarium', 'swim')])
 
 // Scrolling re-measures surfaces every frame. Compare the Surfaces page with the runtime
 // destroyed against a sleeping cat riding a shelf.

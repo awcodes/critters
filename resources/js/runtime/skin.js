@@ -6,7 +6,7 @@ export const MAX_FPS = 12
  * required animation; everything resolves to it eventually.
  */
 export const ANIMATION_FALLBACKS = {
-    walk: 'idle',
+    walk: 'swim',
     swim: 'walk',
     sleep: 'idle',
     pet: 'idle',

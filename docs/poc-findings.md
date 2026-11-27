@@ -304,6 +304,116 @@ The single layout in each row is the measurement window catching the page's own 
 - Interactive-element geometry used for safety lags by up to 150 ms after scrolling stops. During that window a resting creature may briefly sit over a control, with its hit target state frozen. This is the trade-off for not flapping.
 - The placeholder has no `pet` or `carried` frames, so both fall back to sitting. The heart is the lightweight response the spec allows.
 
+## M5: ambient mode and extensibility
+
+**Gate result: pass.**
+
+- A placeholder fish swims in two dimensions inside a bounded region on the **same runtime**: same scheduler, registry, renderer, interaction controller, lifecycle, hiding and obstruction handling. Only the environment and behavior differ.
+- A custom creature (an orange tabby) and a custom behavior ("zoomies") register from workbench application code with **no changes to package files**.
+
+Evidence: 110 Vitest tests and 7 new browser tests (`tests/browser/ambient.spec.js`, 41 browser tests in total), stable across 3 repeat runs.
+
+### Shared runtime, two environments
+
+- `environments/BaseEnvironment.js` (extracted from M3/M4 code, no behavior change) holds what every environment shares:
+  - batched invalidation: scroll, resize and mutation observers, finished transitions, `load` and fonts;
+  - read-phase measurement bookkeeping;
+  - the visible-control geometry used for safety.
+- `PanelEnvironment` (ledges, hops, falls, safe settling) and `AmbientEnvironment` (a bounded region) extend it. `CrittersRuntime.createEnvironment()` picks one from `config.environment`. Nothing else in the runtime branches on the environment.
+- Browser test: navigating from a cat panel to the aquarium panel keeps the **same runtime object**, reconfigures once, and swaps the cat for the fish with a single overlay.
+
+### Ambient environment (`environments/AmbientEnvironment.js`)
+
+- **Region resolution:**
+  1. `->region('<selector>')` (serialized as `region`);
+  2. otherwise the first `[data-critters-region]`;
+  3. otherwise the viewport.
+
+  A *configured* region that is missing hides the creature until it appears, since it is re-found after DOM changes.
+- **Placement:** stored relative to the region's top-left corner, so the fish moves with a scrolling region (verified: a 120 px scroll moves the fish 120 px).
+- **Movement:** `x` follows `direction × speed`, `y` follows `vertical × speed`, clamped inside the region (8 px inset). Walls are reported as `left`, `right`, `top` or `bottom`.
+- **Never uses panel surfaces:** `describe().ledges` is always empty and `hopOptions()` is always `[]` (unit and browser tested). A contained Filament section on the aquarium page is ignored.
+- **Drag and drop:** dropping outside the region makes the fish glide back to the nearest point inside it (verified in the browser). The ambient environment doesn't walk aside before resting; the hit target still disables over controls, so a fish never blocks a click.
+
+### Ambient behavior (`behaviors/AmbientBehavior.js`)
+
+- Weighted actions: `swim` (4–10 s, with a random vertical drift of ±0.4) ⇄ `idle` (2–5 s), with an occasional `sleep` (6–15 s, wakes into `idle`).
+- Bounces off walls: horizontal walls flip `direction`, vertical walls flip the sign of the drift.
+- Behaviors now declare `movingAction` (`walk` or `swim`). The attention reaction and the keyboard-focus "move away" use it, rather than assuming `walk`.
+- **Animation fallbacks:** `walk` and `swim` now fall back to each other before `idle`, so a fish asked to `hop` (a glide) shows its swim frames, and a land creature asked to `swim` shows walk frames.
+
+### Placeholder fish
+
+- Extracted from the **fish row** of the concept sheet with the same method as the cat.
+  - The component-size cutoff was raised to 20% to drop the bubbles drawn beside some frames.
+  - Saved as a 64-colour palette PNG: 960×96, 10 frames, 11.5 KB. The first attempt was accidentally saved as RGBA at 35 KB.
+- Frames: swim 0–3 (6 fps), idle 4–6 (3 fps), sleep 7–9 (1 fps). Displayed at 56×56 with a 48×30 hitbox.
+
+### Extension API (experimental, `runtime/api.js`)
+
+- **Handshake for consumer scripts, which may load before or after Critters:**
+
+  ```js
+  (window.CrittersRegistrations ||= []).push((Critters) => {
+      Critters.registerBehavior('zoomies', ZoomiesBehavior)
+      Critters.registerCreature('tabby', tabbyDefinition)
+  })
+  ```
+
+  - Callbacks queued before Critters initializes run at init; after that, `push` runs them immediately.
+  - A `critters:init` event (with the API as `detail`) is also dispatched on `document`.
+  - A failing callback is logged and isolated.
+- **Late registration:** if the panel's creature or behavior isn't registered when the runtime syncs, it doesn't mount. Registering the missing piece later mounts it (unit tested).
+- **Validation:** `registerCreature` validates the skin and throws a descriptive error, for example `Critters: creature "broken" has an invalid skin. Skin must define an "idle" animation.`
+
+### Workbench proof (`/custom` panel)
+
+- `workbench/resources/js/critters-extensions.js` defines the tabby and a **standalone** `ZoomiesBehavior` class. It deliberately doesn't extend core classes, which proves the behavior contract rather than inheritance.
+- It is registered as an ordinary Filament asset (`$panel->assets([Js::make(...)->navigateOnce()], 'workbench')`), deliberately **before** the plugin, so it loads first and exercises the queue (asserted by script order).
+- The tabby sprite (a recolour of the placeholder, 16.5 KB) is served by an application route (`/workbench/critters/{sprite}`), proving consumer-owned asset URLs. The plugin is configured with `->creature('tabby')->behavior('zoomies')`.
+- Browser test: the tabby mounts, its sprite loads with HTTP 200, it runs at its custom speed, and it never sleeps.
+
+### Behavior contract as implemented (input for the post-POC skill)
+
+A behavior is a class constructed with `{ random }` (a seedable `next()`, `between(a, b)` and `pick(weights)` source). It must provide:
+
+- `start()`, returning an intent;
+- `update(delta)`, returning `{ action, direction, vertical? }`;
+- `transition(action, { duration? })`;
+- `blocked(side)`;
+- an `intent` getter and a writable `direction`;
+- `movingAction`.
+
+It may also provide `chooseHop(options, { delta, blocked })`, returning an option index or `null`. It must never touch the DOM.
+
+### Creature definition as implemented
+
+```js
+{
+    label, width, height, speed, behavior,
+    hitboxes: { [action]: { x, y, width, height } },   // idle is the fallback
+    skin: { src, frameWidth, frameHeight, frameCount, facing, animations: { [name]: { frames, fps } } },
+}
+```
+
+Sprite contract: see M2. No JSON manifest has been frozen; definitions are plain JS objects, as the spec asks.
+
+### Measurements
+
+| Scenario (headless, 10 s) | Layouts | Style recalcs | Script ms | Task ms |
+| --- | --- | --- | --- | --- |
+| Fish swimming in the aquarium | 0 | 600 | 177 | 497 |
+| Cat walking (for comparison) | 1 | 600 | 244 | 557 |
+
+**Bundle:** `critters.js` is 78 KB minified, of which roughly 26 KB is the inlined cat sprite and 15 KB the fish. Inlining built-in sprites avoids URL resolution but every panel downloads both. Before release, built-in sprites should become separately published files.
+
+### Limitations
+
+- The extension API, behavior contract and creature definition are **experimental**. They have been proven with two built-in behaviors and one external one, and are not stable.
+- Consumers pass sprite URLs as strings. For PHP-generated URLs, `FilamentAsset::registerScriptData()` (or a data attribute) is the expected route, but it isn't demonstrated.
+- Ambient regions aren't clipped: a fish in a region partly scrolled off-screen is partly off-screen too, which is correct. The region does not mask the sprite.
+- A custom renderer is still deferred, as the spec asks: only one renderer exists.
+
 ## Deviations from the spec
 
 - Critters are not rendered on Filament auth pages (login and similar). The spec does not mention them, and a companion before sign-in adds nothing.

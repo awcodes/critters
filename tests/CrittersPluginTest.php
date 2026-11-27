@@ -30,6 +30,7 @@ it('has sensible defaults', function (): void {
         'creature' => 'cat',
         'environment' => 'panel',
         'behavior' => 'wander',
+        'region' => null,
         'interactive' => true,
         'touch' => false,
     ]);
@@ -42,12 +43,14 @@ it('stores configured creature, environment and behavior', function (): void {
         ->creature('fish')
         ->environment('ambient')
         ->behavior('swim')
+        ->region('#tank')
         ->getConfig();
 
     expect($config)->toMatchArray([
         'creature' => 'fish',
         'environment' => 'ambient',
         'behavior' => 'swim',
+        'region' => '#tank',
     ]);
 });
 
@@ -101,6 +104,7 @@ it('renders the panel config for authenticated users', function (): void {
         'creature' => 'cat',
         'environment' => 'panel',
         'behavior' => 'wander',
+        'region' => null,
         'interactive' => true,
         'touch' => false,
     ]);

@@ -133,7 +133,7 @@ export class CreatureInstance {
         const center = this.placement.x + this.size.width / 2
         const direction = center < (rect.left + rect.right) / 2 ? -1 : 1
 
-        this.intent = this.behavior.transition('walk', { duration: 2.5 })
+        this.intent = this.behavior.transition(this.behavior.movingAction ?? 'walk', { duration: 2.5 })
         this.behavior.direction = direction
         this.intent = this.behavior.intent
     }
@@ -164,6 +164,7 @@ export class CreatureInstance {
             frame: this.clock.frame,
             action: this.action,
             surface: this.placement.hop ? null : this.placement.surfaceId,
+            hidden: Boolean(this.placement.hidden),
         })
     }
 

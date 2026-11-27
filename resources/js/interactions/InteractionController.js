@@ -106,7 +106,7 @@ export class InteractionController {
         const { creature } = this
 
         if (!this.enabled || this.state !== 'idle' || creature.mode !== 'auto' || creature.placement.hop) return
-        if (creature.intent.action !== 'walk') return
+        if (creature.intent.action !== (creature.behavior.movingAction ?? 'walk')) return
 
         creature.intent = creature.behavior.transition('idle', { duration: this.options.attentionDuration })
     }

@@ -1,4 +1,5 @@
 import { DomSpriteRenderer } from '../renderers/DomSpriteRenderer.js'
+import { AmbientEnvironment } from '../environments/AmbientEnvironment.js'
 import { PanelEnvironment } from '../environments/PanelEnvironment.js'
 import { InteractionController } from '../interactions/InteractionController.js'
 import { AnimationScheduler } from './AnimationScheduler.js'
@@ -76,7 +77,7 @@ export class CrittersRuntime {
         this.config = config
         this.createOverlay(config)
         this.doc.body.appendChild(this.overlay)
-        this.environment = new PanelEnvironment({ win: this.win, doc: this.doc, adapter: this.surfaces }).connect()
+        this.environment = this.createEnvironment(config).connect()
 
         const renderer = new DomSpriteRenderer({ doc: this.doc, container: this.stage, definition })
 
@@ -366,6 +367,15 @@ export class CrittersRuntime {
 
         target.addEventListener(event, handler, options)
         this.cleanups.push(() => target.removeEventListener(event, handler, options))
+    }
+
+    /** Both environments share this runtime, scheduler, registry, renderer and interactions. */
+    createEnvironment(config) {
+        const options = { win: this.win, doc: this.doc }
+
+        return config.environment === 'ambient'
+            ? new AmbientEnvironment({ ...options, region: config.region ?? null })
+            : new PanelEnvironment({ ...options, adapter: this.surfaces })
     }
 
     createOverlay(config) {

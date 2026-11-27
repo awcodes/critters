@@ -38,12 +38,14 @@ Gotchas:
 - Frame order is **read then write**: `environment.ensureMeasured` and `interactions.measure` first, then `creature.update` and `interactions.update`. Keep geometry reads out of the write phase.
 - Safety decisions (walk aside, hit-target enable) only use fresh control geometry (`environment.hasFreshUnsafe()`); never act on stale rects.
 - `behaviors/` pick intents and never touch the DOM. `environments/` own geometry and measure only when invalidated. `renderers/` write styles only and never read layout.
-- Built-ins are registered in `critters.js`; `window.Critters.registerCreature/registerBehavior` is the experimental extension point.
-- The placeholder cat sprite is inlined into the bundle as a data URL (esbuild `dataurl` loader).
+- `environments/BaseEnvironment` holds shared invalidation, observers and control geometry; `PanelEnvironment` (ledges) and `AmbientEnvironment` (one region, 2D, no surfaces) extend it. `CrittersRuntime.createEnvironment()` is the only place that branches on `config.environment`.
+- Built-ins (cat + wander, fish + swim) are registered in `critters.js`. `runtime/api.js` is the experimental extension point: `window.Critters.registerCreature/registerBehavior` plus the `window.CrittersRegistrations` queue and `critters:init` event; late registrations mount a waiting panel.
+- Behaviors declare `movingAction` (`walk` or `swim`); never hard-code `'walk'` outside panel-specific code.
+- Built-in placeholder sprites (cat, fish) are inlined into the bundle as data URLs (esbuild `dataurl` loader). Save sprites as **palette** PNGs; RGBA triples the size.
 
 ## Workbench
 
-Three panels: `admin` (SPA + Critters, collapsible sidebar), `classic` (no SPA + Critters), `plain` (SPA, no Critters), used to test the full-load, SPA, and panel-exit lifecycles. `/admin/surfaces` is the surface-navigation fixture (markers, adapter section, rejected marked button, removable shelf, Livewire form).
+Five panels: `admin` (SPA + cat, collapsible sidebar), `classic` (no SPA, cat, `interactive(false)`), `plain` (SPA, no Critters), `aquarium` (ambient fish in `[data-critters-region="tank"]`), `custom` (tabby + zoomies registered from `workbench/resources/js/critters-extensions.js`, sprite served by a workbench route). `/admin/surfaces` is the surface-navigation fixture (markers, adapter section, rejected marked button, removable shelf, Livewire form).
 
 Browser-test tips: `/admin` fades `.fi-main-ctn` in, so wait for `opacity: 1` (or for the expected ledges) before measuring. Use `.critters-status`, not `getByRole('status')`, because Filament notifications also have `role=status`.
 
