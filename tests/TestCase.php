@@ -25,6 +25,7 @@ use Workbench\App\Providers\Filament\AquariumPanelProvider;
 use Workbench\App\Providers\Filament\ClassicPanelProvider;
 use Workbench\App\Providers\Filament\CustomPanelProvider;
 use Workbench\App\Providers\Filament\PlainPanelProvider;
+use Workbench\App\Providers\Filament\ZooPanelProvider;
 
 class TestCase extends Orchestra
 {
@@ -64,6 +65,7 @@ class TestCase extends Orchestra
             PlainPanelProvider::class,
             AquariumPanelProvider::class,
             CustomPanelProvider::class,
+            ZooPanelProvider::class,
         ];
     }
 }

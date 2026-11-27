@@ -1,3 +1,4 @@
+import { readdirSync } from 'node:fs'
 import esbuild from 'esbuild'
 
 const isDev = process.argv.includes('--dev')
@@ -56,7 +57,9 @@ compile({
     outfile: './resources/dist/critters.css',
 }).then(() => console.log('Compile finished.'))
 
-for (const creature of ['cat', 'fish']) {
+const creatures = readdirSync('./resources/css/creatures').filter((file) => file.endsWith('.css')).map((file) => file.replace(/\.css$/, ''))
+
+for (const creature of creatures) {
     compile({
         ...defaultOptions,
         entryPoints: [`./resources/css/creatures/${creature}.css`],

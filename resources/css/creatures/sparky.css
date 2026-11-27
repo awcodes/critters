@@ -1,0 +1,4 @@
+/* Built-in sparky sprite strip, inlined at build time. The plugin links this stylesheet only on pages showing this creature. */
+.critters-skin-sparky {
+    background-image: url(../../sprites/sparky.png);
+}

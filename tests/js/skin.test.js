@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { FrameClock, MAX_FPS, resolveAnimation, validateSkin } from '../../resources/js/runtime/skin.js'
-import { placeholderCat } from '../../resources/js/creatures/placeholderCat.js'
+import { builtInCreatures } from '../../resources/js/creatures/builtins.js'
 import { testSkin } from './helpers.js'
 
 describe('validateSkin', () => {
-    it('accepts the placeholder cat', () => {
-        expect(validateSkin(placeholderCat.skin)).toEqual([])
+    it('accepts the built-in cat', () => {
+        expect(validateSkin(builtInCreatures.cat.skin)).toEqual([])
     })
 
     it('requires an idle animation', () => {

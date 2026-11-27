@@ -1,0 +1,4 @@
+/* Built-in barney sprite strip, inlined at build time. The plugin links this stylesheet only on pages showing this creature. */
+.critters-skin-barney {
+    background-image: url(../../sprites/barney.png);
+}

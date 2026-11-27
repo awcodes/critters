@@ -30,7 +30,7 @@ it('has sensible defaults', function (): void {
         'panel' => 'admin',
         'creature' => 'cat',
         'environment' => 'panel',
-        'behavior' => 'wander',
+        'behavior' => null,
         'region' => null,
         'interactive' => true,
         'touch' => false,
@@ -88,7 +88,7 @@ it('registers its script and stylesheet under the awcodes/critters package', fun
             ->getId()->toBe('critters')
             ->isNavigateOnce()->toBeTrue())
         ->and($styles)->not->toBeEmpty()
-        ->each(fn ($style) => $style->toBeInstanceOf(Css::class)->getId()->toBeIn(['critters', 'critters-creature-cat', 'critters-creature-fish']));
+        ->each(fn ($style) => $style->toBeInstanceOf(Css::class));
 });
 
 it('renders the panel config for authenticated users', function (): void {
@@ -104,7 +104,7 @@ it('renders the panel config for authenticated users', function (): void {
         'panel' => 'admin',
         'creature' => 'cat',
         'environment' => 'panel',
-        'behavior' => 'wander',
+        'behavior' => null,
         'region' => null,
         'interactive' => true,
         'touch' => false,
@@ -170,18 +170,68 @@ it('hides the pet control when interactions are disabled', function (): void {
         ->toHaveKey('critters-toggle');
 });
 
-it('registers only the sprite stylesheet of the configured built-in creature', function (): void {
-    // Panel::assets() only stores assets until the panel boots; read what the plugin added.
-    $ids = function (CrittersPlugin $plugin): array {
-        $panel = Panel::make()->id('probe-' . uniqid());
-        $panel->plugin($plugin);
+it('publishes every built-in sprite but loads them only on request', function (): void {
+    $panel = Panel::make()->id('probe-' . uniqid());
+    $panel->plugin(CrittersPlugin::make());
 
-        return collect((fn (): array => $this->assets)->call($panel)[CrittersPlugin::ASSET_PACKAGE])
-            ->map(fn ($asset): string => $asset->getId())
-            ->all();
-    };
+    $assets = collect((fn (): array => $this->assets)->call($panel)[CrittersPlugin::ASSET_PACKAGE])
+        ->keyBy(fn ($asset): string => $asset->getId());
 
-    expect($ids(CrittersPlugin::make()))->toBe(['critters', 'critters', 'critters-creature-cat'])
-        ->and($ids(CrittersPlugin::make()->creature('fish')))->toBe(['critters', 'critters', 'critters-creature-fish'])
-        ->and($ids(CrittersPlugin::make()->creature('tabby')))->toBe(['critters', 'critters']);
+    foreach (array_keys(CrittersPlugin::BUILT_IN_CREATURES) as $creature) {
+        $sprite = $assets[CrittersPlugin::spriteAssetId($creature)];
+
+        expect($sprite)->toBeInstanceOf(Css::class)
+            ->and($sprite->isLoadedOnRequest())->toBeTrue()
+            ->and(file_exists($sprite->getPath()))->toBeTrue();
+    }
+
+    expect($assets['critters']->isLoadedOnRequest())->toBeFalse();
 });
+
+function renderCrittersHead(string $panel): string
+{
+    Filament::setCurrentPanel($panel);
+    Filament::getCurrentPanel()->boot();
+
+    return (string) Filament::renderHook(PanelsRenderHook::HEAD_END);
+}
+
+it('links only the sprite of the creature shown on the page', function (): void {
+    $this->actingAs(User::factory()->create());
+
+    $html = renderCrittersHead('admin');
+
+    expect($html)->toContain('data-critters-sprite="cat"')
+        ->toContain('critters-creature-cat.css')
+        ->and(substr_count($html, 'data-critters-sprite'))->toBe(1);
+});
+
+it('resolves a closure creature per request', function (): void {
+    $this->actingAs(User::factory()->create());
+
+    Filament::getPanel('admin')->getPlugin('critters')->creature(fn (): string => 'sparky');
+
+    expect(renderCrittersHead('admin'))->toContain('data-critters-sprite="sparky"')
+        ->and(renderCrittersHook('admin'))->toContain('"creature":"sparky"');
+});
+
+it('links no sprite for custom creatures or guests', function (): void {
+    expect(renderCrittersHead('admin'))->not->toContain('data-critters-sprite');
+
+    $this->actingAs(User::factory()->create());
+    Filament::getPanel('admin')->getPlugin('critters')->creature('tabby');
+
+    expect(renderCrittersHead('admin'))->not->toContain('data-critters-sprite');
+});
+
+it('names built-in creatures naturally in the pet control', function (string $creature, string $label): void {
+    $this->actingAs(User::factory()->create());
+    Filament::setCurrentPanel('admin');
+    Filament::getCurrentPanel()->getPlugin('critters')->creature($creature);
+
+    expect(Filament::getCurrentPanel()->getUserMenuItems()['critters-pet']->getLabel())->toBe($label);
+})->with([
+    ['cat', 'Pet the cat'],
+    ['sparky', 'Pet Sparky'],
+    ['tabby', 'Pet the tabby'],
+]);

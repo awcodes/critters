@@ -1,4 +1,4 @@
-/* Built-in fish sprite, inlined at build time. Loaded only on panels that use the fish. */
+/* Built-in fish sprite strip, inlined at build time. The plugin links this stylesheet only on pages showing this creature. */
 .critters-skin-fish {
-    background-image: url(../../sprites/placeholder-fish.png);
+    background-image: url(../../sprites/fish.png);
 }

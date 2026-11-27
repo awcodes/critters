@@ -1,7 +1,6 @@
 import { AmbientBehavior } from './behaviors/AmbientBehavior.js'
 import { WanderBehavior } from './behaviors/WanderBehavior.js'
-import { placeholderCat } from './creatures/placeholderCat.js'
-import { placeholderFish } from './creatures/placeholderFish.js'
+import { builtInCreatures } from './creatures/builtins.js'
 import { connectFilament, filamentOverlays, filamentSurfaces } from './integration/filament.js'
 import { createCrittersApi } from './runtime/api.js'
 import { readConfig } from './runtime/config.js'
@@ -10,11 +9,12 @@ import { watchDocument } from './runtime/DocumentWatcher.js'
 import { Registry } from './runtime/Registry.js'
 
 if (!window.Critters) {
-    const registry = new Registry()
-        .registerCreature('cat', placeholderCat)
-        .registerCreature('fish', placeholderFish)
-        .registerBehavior('wander', WanderBehavior)
-        .registerBehavior('swim', AmbientBehavior)
+    const registry = new Registry().registerBehavior('wander', WanderBehavior).registerBehavior('swim', AmbientBehavior)
+
+    for (const [name, definition] of Object.entries(builtInCreatures)) {
+        registry.registerCreature(name, definition)
+    }
+
     const runtime = new CrittersRuntime({ registry, surfaces: filamentSurfaces, overlays: filamentOverlays })
     const sync = () => runtime.sync(readConfig())
 

@@ -90,7 +90,7 @@ export class CrittersRuntime {
             container: this.stage,
             options: this.interactionOptions,
             isStatic: () => this.state === 'static',
-            onPet: () => this.announce(`You petted the ${definition.label ?? definition.name}.`),
+            onPet: () => this.announce(`You petted ${definition.label ?? `the ${definition.name}`}.`),
         })
 
         this.cleanups.push(

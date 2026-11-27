@@ -1,0 +1,4 @@
+/* Built-in dog sprite strip, inlined at build time. The plugin links this stylesheet only on pages showing this creature. */
+.critters-skin-dog {
+    background-image: url(../../sprites/dog.png);
+}

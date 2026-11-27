@@ -1,4 +1,4 @@
-/* Built-in cat sprite, inlined at build time. Loaded only on panels that use the cat. */
+/* Built-in cat sprite strip, inlined at build time. The plugin links this stylesheet only on pages showing this creature. */
 .critters-skin-cat {
-    background-image: url(../../sprites/placeholder-cat.png);
+    background-image: url(../../sprites/cat.png);
 }

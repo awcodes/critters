@@ -1,0 +1,4 @@
+/* Built-in atlas sprite strip, inlined at build time. The plugin links this stylesheet only on pages showing this creature. */
+.critters-skin-atlas {
+    background-image: url(../../sprites/atlas.png);
+}

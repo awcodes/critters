@@ -1,0 +1,4 @@
+/* Built-in lizard sprite strip, inlined at build time. The plugin links this stylesheet only on pages showing this creature. */
+.critters-skin-lizard {
+    background-image: url(../../sprites/lizard.png);
+}

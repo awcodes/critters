@@ -60,7 +60,7 @@
     }
 
     const tabby = {
-        label: 'tabby',
+        label: 'the tabby',
         width: 64,
         height: 64,
         speed: 90,

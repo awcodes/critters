@@ -545,6 +545,29 @@ That they surfaced at all argues for keeping the real-browser suite as the prima
 
 **Not recommended:** expanding scope before the items above. Pet needs, persistence and multiple creatures stay out of scope, per the spec.
 
+## Post-POC: production sprites
+
+- All seven creatures now have runtime sprites built from the owner's concept sheet, now kept at `art/critters-sprite-sheet.png`. That sheet uses the 14-frame layout with drawn `pet` and `carried` poses.
+- The owner confirmed usage permission for the Filament mascots (Sparky, Atlas, Barney), which lifts the spec's mascot-asset gate.
+- **Method:** extraction and cleanup, not new artwork. Each strip:
+  - has its background flood-filled away;
+  - is converted to crisp pixel art on a half-size grid;
+  - has hard alpha, 2 px margins, and feet on the baseline;
+  - has its walk cycle size-normalized;
+  - is saved as a 64-colour palette PNG.
+
+  Every strip passes the brief's automated checks (83 of 83). Atlas's alert marks were erased by hand from idle frames 5 and 6.
+- **Runtime changes:**
+  - `resources/js/creatures/builtins.js` defines all seven, generated from the strips' measured footprints. Every creature is shown at 2/3 of its source cell: 64 px, or 85 px for Atlas.
+  - The plugin publishes every sprite stylesheet as `loadedOnRequest()` and links only the shown creature's stylesheet from `<head>`, so `creature()` now also accepts a closure (per request or per user).
+  - `behavior()` defaults to the creature's own behavior.
+  - The pet control reads "Pet the cat" or "Pet Sparky".
+- **Workbench:** a `zoo` panel previews any land creature (`/zoo?critter=sparky`).
+- **Tests:** a browser test walks, pets and carries every creature, checking walk frames 0–3, pet 10–11 and carried 12–13, and that only its stylesheet loads. Results: 148 browser tests across Chromium, Firefox and WebKit, 140 Vitest and 22 Pest tests, all passing.
+- **Sizes:** sprite stylesheets are 10.5–19.7 KB each, and only one is downloaded per page.
+- **Reproducible:** `bin/sprites/build.py` rebuilds every strip and `builtins.js` from the sheet. It validates before installing anything, and its output is byte-identical to the committed sprites. See `bin/sprites/README.md`.
+- **Still open:** this resolves "production artwork" from the M6 entry criteria only as far as the sheet's art goes. The motion of each animation hasn't been reviewed by eye beyond still frames and the browser tests, and a pixel artist's pass would improve frame-to-frame consistency.
+
 ## Deviations from the spec
 
 - Critters are not rendered on Filament auth pages (login and similar). The spec does not mention them, and a companion before sign-in adds nothing.

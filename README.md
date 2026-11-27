@@ -24,13 +24,17 @@ $panel->plugins([
 ]);
 ```
 
+## Creatures
+
+Seven creatures are built in: `cat`, `dog`, `lizard`, `fish` (for ambient mode), and Filament's mascots `sparky`, `atlas` and `barney`. Each has walk (or swim), idle, sleep, pet and carried animations. A page only downloads the sprite of the creature it shows.
+
 ## Configuration
 
 ```php
 CrittersPlugin::make()
-    ->creature('cat')
+    ->creature('cat')        // or a closure, e.g. fn () => auth()->user()->critter
     ->environment('panel')   // or 'ambient'
-    ->behavior('wander')
+    ->behavior('wander')     // optional; defaults to the creature's own behavior
     ->enabled(fn (): bool => auth()->user()?->likes_cats ?? true)
     ->interactive()          // pet and drag; false makes creatures fully click-through
     ->touchDevices(false);   // touch-only devices are opted out by default

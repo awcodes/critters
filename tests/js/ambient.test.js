@@ -3,7 +3,7 @@ import { AmbientEnvironment } from '../../resources/js/environments/AmbientEnvir
 import { AmbientBehavior } from '../../resources/js/behaviors/AmbientBehavior.js'
 import { createRandom } from '../../resources/js/runtime/random.js'
 import { resolveAnimation } from '../../resources/js/runtime/skin.js'
-import { placeholderFish } from '../../resources/js/creatures/placeholderFish.js'
+import { builtInCreatures } from '../../resources/js/creatures/builtins.js'
 import { config, element, makeRuntime, setRect, setReducedMotion, setViewport, fixedClock } from './helpers.js'
 import { Registry } from '../../resources/js/runtime/Registry.js'
 import { CrittersRuntime } from '../../resources/js/runtime/CrittersRuntime.js'
@@ -133,10 +133,10 @@ describe('AmbientBehavior', () => {
 })
 
 describe('fish skin', () => {
-    it('falls back from walk to swim and from hop to swim', () => {
-        expect(resolveAnimation(placeholderFish.skin, 'walk').name).toBe('swim')
-        expect(resolveAnimation(placeholderFish.skin, 'hop').name).toBe('swim')
-        expect(resolveAnimation(placeholderFish.skin, 'pet').name).toBe('idle')
+    it('falls back from walk and hop to swim, and has its own pet frames', () => {
+        expect(resolveAnimation(builtInCreatures.fish.skin, 'walk').name).toBe('swim')
+        expect(resolveAnimation(builtInCreatures.fish.skin, 'hop').name).toBe('swim')
+        expect(resolveAnimation(builtInCreatures.fish.skin, 'pet').name).toBe('pet')
     })
 })
 
@@ -150,7 +150,7 @@ describe('shared runtime', () => {
     it('runs the ambient environment with the same scheduler, registry, renderer and interactions', () => {
         tank()
         const frames = fakeFrames()
-        const registry = new Registry().registerCreature('fish', placeholderFish).registerBehavior('swim', AmbientBehavior)
+        const registry = new Registry().registerCreature('fish', builtInCreatures.fish).registerBehavior('swim', AmbientBehavior)
         const runtime = new CrittersRuntime({ registry, scheduler: new AnimationScheduler(frames), seed: 3 })
 
         runtime.mount({ ...config, creature: 'fish', behavior: 'swim', environment: 'ambient' }).start()
